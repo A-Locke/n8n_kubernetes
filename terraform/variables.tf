@@ -1,0 +1,17 @@
+variable "tenancy_ocid" {}
+variable "user_ocid" {}
+variable "fingerprint" {}
+variable "private_key" {}
+variable "region" {}
+variable "availability_domain" {}
+variable "compartment_ocid" {}
+variable "vcn_cidr_block" { default = "10.0.0.0/16" }
+variable "oke_k8s_version" { default = "v1.33.1" }
+variable "vpn_ssh_key" {}
+variable "vpn_private_key" {}
+variable "oke_ssh_key" {}
+variable "vpn_image_ocid" {}
+variable "oke_image_ocid" {}
+variable "budget_alert_email" {}
+variable "vpn_instance_shape" {}
+variable "oke_node_shape" {}
