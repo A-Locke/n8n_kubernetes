@@ -1,5 +1,8 @@
 name: OCI Infra Pipeline
-
+permissions:
+  contents: read
+  id-token: write
+  
 on:
   workflow_dispatch:
 
@@ -27,34 +30,39 @@ jobs:
         echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"     | base64 -d > vpn_ssh_key.pub
         echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
 
-        cat <<EOF > terraform.tfvars
-        tenancy_ocid         = "${{ secrets.TF_TENANCY_OCID }}"
-        user_ocid            = "${{ secrets.TF_USER_OCID }}"
-        region               = "${{ secrets.TF_REGION }}"
-        availability_domain  = "${{ secrets.TF_AD }}"
-        fingerprint          = "${{ secrets.TF_FINGERPRINT }}"
-        private_key          = <<EOKEY
-$(cat oci_api_key.pem)
-EOKEY
-        compartment_ocid     = "${{ secrets.TF_COMPARTMENT_OCID }}"
-        vcn_cidr_block       = "${{ secrets.TF_VCN_CIDR }}"
-        oke_k8s_version      = "${{ secrets.TF_OKE_VERSION }}"
-        oke_ssh_key          = <<EOKEY
-$(cat oke_ssh_key.pub)
-EOKEY
-        vpn_ssh_key          = <<EOKEY
-$(cat vpn_ssh_key.pub)
-EOKEY
-        vpn_private_key      = <<EOKEY
-$(cat vpn_key.pem)
-EOKEY
-        vpn_instance_shape   = "${{ secrets.TF_VPN_SHAPE }}"
-        vpn_image_ocid       = "${{ secrets.TF_VPN_IMAGE_OCID }}"
-        oke_node_shape       = "${{ secrets.TF_NODE_SHAPE }}"
-        oke_image_ocid       = "${{ secrets.TF_NODE_IMAGE_OCID }}"
-        budget_alert_email   = "${{ secrets.TF_BUDGET_EMAIL }}"
-        EOF
+        {
+        echo 'tenancy_ocid         = "${{ secrets.TF_TENANCY_OCID }}"'
+        echo 'user_ocid            = "${{ secrets.TF_USER_OCID }}"'
+        echo 'region               = "${{ secrets.TF_REGION }}"'
+        echo 'availability_domain  = "${{ secrets.TF_AD }}"'
+        echo 'fingerprint          = "${{ secrets.TF_FINGERPRINT }}"'
+  
+        echo 'private_key = <<EOKEY'
+        cat oci_api_key.pem
+        echo 'EOKEY'
 
+        echo 'compartment_ocid     = "${{ secrets.TF_COMPARTMENT_OCID }}"'
+        echo 'vcn_cidr_block       = "${{ secrets.TF_VCN_CIDR }}"'
+        echo 'oke_k8s_version      = "${{ secrets.TF_OKE_VERSION }}"'
+
+        echo 'oke_ssh_key = <<EOKEY'
+        cat oke_ssh_key.pub
+        echo 'EOKEY'
+
+        echo 'vpn_ssh_key = <<EOKEY'
+        cat vpn_ssh_key.pub
+        echo 'EOKEY'
+
+        echo 'vpn_private_key = <<EOKEY'
+        cat vpn_key.pem
+        echo 'EOKEY'
+
+        echo 'vpn_instance_shape   = "${{ secrets.TF_VPN_SHAPE }}"'
+        echo 'vpn_image_ocid       = "${{ secrets.TF_VPN_IMAGE_OCID }}"'
+        echo 'oke_node_shape       = "${{ secrets.TF_NODE_SHAPE }}"'
+        echo 'oke_image_ocid       = "${{ secrets.TF_NODE_IMAGE_OCID }}"'
+        echo 'budget_alert_email   = "${{ secrets.TF_BUDGET_EMAIL }}"'
+        } > terraform.tfvars
     - name: Terraform Init
       run: terraform init
 
