@@ -18,7 +18,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.12.2  # Consider upgrading
+          terraform_version: 1.12.2  # Consider upgrading to >=1.5.x
 
       - name: Create terraform.tfvars with decoded secrets
         run: |
@@ -27,39 +27,42 @@ jobs:
           echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"     | base64 -d > vpn_ssh_key.pub
           echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
 
-          {
-            echo 'tenancy_ocid         = "${{ secrets.TENANCY_OCID }}"'
-            echo 'user_ocid            = "${{ secrets.USER_OCID }}"'
-            echo 'region               = "${{ secrets.REGION }}"'
-            echo 'availability_domain  = "${{ secrets.AVAILABILITY_DOMAIN }}"'
-            echo 'fingerprint          = "${{ secrets.FINGERPRINT }}"'
+          tee terraform.tfvars > /dev/null <<EOF
+          tenancy_ocid         = "${{ secrets.TENANCY_OCID }}"
+          user_ocid            = "${{ secrets.USER_OCID }}"
+          region               = "${{ secrets.REGION }}"
+          availability_domain  = "${{ secrets.AVAILABILITY_DOMAIN }}"
+          fingerprint          = "${{ secrets.FINGERPRINT }}"
 
-            echo 'private_key = <<EOKEY'
-            cat oci_api_key.pem
-            echo 'EOKEY'
+          private_key = <<EOKEY
+          $(cat oci_api_key.pem)
+          EOKEY
 
-            echo 'compartment_ocid     = "${{ secrets.COMPARTMENT_OCID }}"'
-            echo 'vcn_cidr_block       = "${{ secrets.VCN_CIDR_BLOCK }}"'
-            echo 'oke_k8s_version      = "${{ secrets.OKE_K8S_VERSION }}"'
+          compartment_ocid     = "${{ secrets.COMPARTMENT_OCID }}"
+          vcn_cidr_block       = "${{ secrets.VCN_CIDR_BLOCK }}"
+          oke_k8s_version      = "${{ secrets.OKE_K8S_VERSION }}"
 
-            echo 'oke_ssh_key = <<EOKEY'
-            cat oke_ssh_key.pub
-            echo 'EOKEY'
+          oke_ssh_key = <<EOKEY
+          $(cat oke_ssh_key.pub)
+          EOKEY
 
-            echo 'vpn_ssh_key = <<EOKEY'
-            cat vpn_ssh_key.pub
-            echo 'EOKEY'
+          vpn_ssh_key = <<EOKEY
+          $(cat vpn_ssh_key.pub)
+          EOKEY
 
-            echo 'vpn_private_key = <<EOKEY'
-            cat vpn_key.pem
-            echo 'EOKEY'
+          vpn_private_key = <<EOKEY
+          $(cat vpn_key.pem)
+          EOKEY
 
-            echo 'vpn_instance_shape   = "${{ secrets.VPN_INSTANCE_SHAPE }}"'
-            echo 'vpn_image_ocid       = "${{ secrets.VPN_IMAGE_OCID }}"'
-            echo 'oke_node_shape       = "${{ secrets.OKE_NODE_SHAPE }}"'
-            echo 'oke_image_ocid       = "${{ secrets.OKE_IMAGE_OCID }}"'
-            echo 'budget_alert_email   = "${{ secrets.BUDGET_ALERT_EMAIL }}"'
-          } > terraform.tfvars
+          vpn_instance_shape   = "${{ secrets.VPN_INSTANCE_SHAPE }}"
+          vpn_image_ocid       = "${{ secrets.VPN_IMAGE_OCID }}"
+          oke_node_shape       = "${{ secrets.OKE_NODE_SHAPE }}"
+          oke_image_ocid       = "${{ secrets.OKE_IMAGE_OCID }}"
+          budget_alert_email   = "${{ secrets.BUDGET_ALERT_EMAIL }}"
+          EOF
+
+      - name: Debug terraform.tfvars content
+        run: cat terraform.tfvars
 
       - name: Terraform Init
         env:
