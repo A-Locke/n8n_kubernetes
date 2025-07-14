@@ -61,9 +61,6 @@ jobs:
           budget_alert_email   = "${{ secrets.BUDGET_ALERT_EMAIL }}"
           EOF
 
-      - name: Debug terraform.tfvars content
-        run: cat terraform.tfvars
-
       - name: Terraform Init
         env:
           TF_INPUT: false
