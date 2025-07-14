@@ -9,6 +9,9 @@ crash.log
 # All files ending in _key (no extension)
 *_key
 
+# All keys encoded in base64
+*.b64
+
 # All key files with or without extension
 *.pem
 *.key

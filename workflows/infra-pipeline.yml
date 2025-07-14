@@ -1,0 +1,65 @@
+name: OCI Infra Pipeline
+
+on:
+  workflow_dispatch:
+
+jobs:
+  terraform:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./terraform
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.12.2  # Use a modern version
+
+    - name: Decode base64 secrets
+      run: |
+        echo "${{ secrets.TF_PRIVATE_KEY_B64 }}"      | base64 -d > oci_api_key.pem
+        echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}"       | base64 -d > oke_ssh_key.pub
+        echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"       | base64 -d > vpn_ssh_key.pub
+        echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}"   | base64 -d > vpn_key.pem
+
+    - name: Create terraform.tfvars file
+      run: |
+        cat <<EOF > terraform.tfvars
+        tenancy_ocid         = "${{ secrets.TF_TENANCY_OCID }}"
+        user_ocid            = "${{ secrets.TF_USER_OCID }}"
+        region               = "${{ secrets.TF_REGION }}"
+        availability_domain  = "${{ secrets.TF_AD }}"
+        fingerprint          = "${{ secrets.TF_FINGERPRINT }}"
+        private_key          = "\${file(\"oci_api_key.pem\")}"
+        compartment_ocid     = "${{ secrets.TF_COMPARTMENT_OCID }}"
+        vcn_cidr_block       = "${{ secrets.TF_VCN_CIDR }}"
+        oke_k8s_version      = "${{ secrets.TF_OKE_VERSION }}"
+        oke_ssh_key          = "\${file(\"oke_ssh_key.pub\")}"
+        vpn_ssh_key          = "\${file(\"vpn_ssh_key.pub\")}"
+        vpn_private_key      = "\${file(\"vpn_key.pem\")}"
+        vpn_instance_shape   = "${{ secrets.TF_VPN_SHAPE }}"
+        vpn_image_ocid       = "${{ secrets.TF_VPN_IMAGE_OCID }}"
+        oke_node_shape       = "${{ secrets.TF_NODE_SHAPE }}"
+        oke_image_ocid       = "${{ secrets.TF_NODE_IMAGE_OCID }}"
+        budget_alert_email   = "${{ secrets.TF_BUDGET_EMAIL }}"
+        EOF
+
+    - name: Terraform Init
+      run: terraform init
+
+    - name: Terraform Validate
+      run: terraform validate
+
+    - name: Terraform Plan
+      run: terraform plan -var-file="terraform.tfvars"
+
+    - name: Terraform Apply
+      run: terraform apply -auto-approve -var-file="terraform.tfvars"
+
+    - name: Cleanup decoded secrets
+      run: rm -f oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub vpn_key.pem terraform.tfvars

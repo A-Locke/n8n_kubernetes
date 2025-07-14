@@ -33,12 +33,12 @@ resource "oci_containerengine_node_pool" "node_pool" {
   node_shape         = var.oke_node_shape
 
   node_shape_config {
-    ocpus         = 1
-    memory_in_gbs = 6
+    ocpus         = 2
+    memory_in_gbs = 12
   }
 
   node_config_details {
-    size = 1
+    size = 2
 
     placement_configs {
       availability_domain = var.availability_domain
