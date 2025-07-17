@@ -55,3 +55,6 @@ resource "oci_containerengine_node_pool" "node_pool" {
   boot_volume_size_in_gbs = 50
 }
 }
+data "oci_containerengine_cluster_kube_config" "generated" {
+  cluster_id = oci_containerengine_cluster.oke_cluster.id
+}

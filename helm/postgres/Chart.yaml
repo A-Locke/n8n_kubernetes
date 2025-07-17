@@ -1,0 +1,22 @@
+apiVersion: v2
+name: postgres
+description: A Helm chart for PostgreSQL database with n8n configuration
+type: application
+version: 0.1.0
+appVersion: "15.4.0"
+home: https://www.postgresql.org
+sources:
+  - https://github.com/postgres/postgres
+keywords:
+  - postgresql
+  - database
+  - sql
+maintainers:
+  - name: Your Name
+    email: your.email@example.com
+
+dependencies:
+  - name: postgresql
+    version: "12.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled

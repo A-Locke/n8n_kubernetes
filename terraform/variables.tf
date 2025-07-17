@@ -15,3 +15,26 @@ variable "oke_image_ocid" {}
 variable "budget_alert_email" {}
 variable "vpn_instance_shape" {}
 variable "oke_node_shape" {}
+variable "lb_ip" {
+  description = "Load Balancer IP for DNS"
+  type        = string
+  default     = "127.0.0.1"
+}
+variable "domain" {
+  description = "Base domain for ingress DNS (e.g. locke.cz)"
+}
+variable "vpn_wireguard_private_key" {
+  description = "WireGuard private key for the VPN server"
+  sensitive   = true
+}
+variable "vpn_wireguard_public_key" {
+  description = "WireGuard server public key for client"
+  type        = string
+  sensitive   = true
+}
+
+variable "vpn_client_private_key" {
+  description = "WireGuard client private key"
+  type        = string
+  sensitive   = true
+}

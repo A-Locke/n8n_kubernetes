@@ -193,7 +193,18 @@ resource "oci_core_security_list" "vpn_sec_list" {
     protocol = "all"
     source   = "10.0.0.0/16"
   }
-
+  
+  # UDP for VPN
+	ingress_security_rules {
+    protocol = "17"  
+    source = "0.0.0.0/0"
+    udp_options {
+      destination_port_range {
+        min = 51820
+        max = 51820
+    }
+   }
+ }
   egress_security_rules {
     protocol    = "all"
     destination = "0.0.0.0/0"
