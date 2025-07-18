@@ -21,7 +21,7 @@ variable "lb_ip" {
   default     = "127.0.0.1"
 }
 variable "domain" {
-  description = "Base domain for ingress DNS
+  description = "Base domain for ingress DNS"
   type        = string
   default     = "example.com"
 }
