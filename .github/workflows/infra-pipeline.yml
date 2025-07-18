@@ -163,6 +163,24 @@ jobs:
           mkdir -p ~/.kube
           cp ../kubeconfig.yaml ~/.kube/config
 
+      - name: Install OCI CLI
+        run: |
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+          echo "$HOME/bin" >> $GITHUB_PATH
+          
+      - name: Configure OCI CLI
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}" | base64 -d > ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.USER_OCID }}
+          fingerprint=${{ secrets.FINGERPRINT }}
+          tenancy=${{ secrets.TENANCY_OCID }}
+          region=${{ secrets.REGION }}
+          key_file=~/.oci/oci_api_key.pem
+          EOF
+
       - name: Add cert-manager repo
         run: |
           helm repo add jetstack https://charts.jetstack.io
