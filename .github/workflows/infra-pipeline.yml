@@ -234,14 +234,14 @@ jobs:
             --create-namespace \
             --values ./ingress-nginx-config/values.yaml \
             --set global.domain="${{ secrets.DOMAIN }}" \
-            --set ingress-nginx.controller.service.annotations.service\\.beta\\.kubernetes\\.io/oci-load-balancer-subnet1="${{ needs.terraform.outputs.lb_subnet }}"
+            --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet1'="${{ needs.terraform.outputs.lb_subnet }}"
             
       - name: Wait for ingress-nginx LoadBalancer IP
         id: get-lb-ip
         run: |
           echo "Waiting for ingress-nginx LoadBalancer IP..."
           for i in {1..30}; do
-            IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            IP=$(kubectl get svc ingress-nginx-config-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
             if [[ "$IP" != "" ]]; then
               echo "Found IP: $IP"
               echo "lb_ip=$IP" >> "$GITHUB_OUTPUT"
