@@ -81,6 +81,11 @@ jobs:
           printf "OCI_PRIVATE_KEY<<EOF\n%s\nEOF\n" "$(cat oci_api_key.pem | tr -d '\r')" >> "$GITHUB_ENV"
     
       - name: Terraform Init
+            echo "OCI_TENANCY_OCID=$TENANCY_OCID"
+            echo "OCI_USER_OCID=$USER_OCID"
+            echo "OCI_FINGERPRINT=$FINGERPRINT"
+            echo "OCI_REGION=$REGION"
+            echo "OCI_PRIVATE_KEY is ${#OCI_PRIVATE_KEY} characters long"
         env:
           TF_INPUT: false
           OCI_TENANCY_OCID: ${{ secrets.TENANCY_OCID }}
