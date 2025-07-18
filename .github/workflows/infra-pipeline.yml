@@ -169,9 +169,12 @@ jobs:
           echo "$HOME/bin" >> $GITHUB_PATH
           
       - name: Configure OCI CLI
+        env:
+          OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
         run: |
           mkdir -p ~/.oci
           echo "${{ secrets.TF_PRIVATE_KEY_B64 }}" | base64 -d > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
           user=${{ secrets.USER_OCID }}
@@ -180,6 +183,7 @@ jobs:
           region=${{ secrets.REGION }}
           key_file=~/.oci/oci_api_key.pem
           EOF
+          chmod 600 ~/.oci/config
 
       - name: Add cert-manager repo
         run: |
@@ -218,6 +222,8 @@ jobs:
             --values ./cert-manager-config/values.yaml \
             --set cloudflare.enabled=true \
             --set cloudflare.apiToken="${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            --set clusterIssuers.cloudflare.email="${{ secrets.PGADMIN_EMAIL }}" \
+            --set clusterIssuers.http01.email="${{ secrets.PGADMIN_EMAIL }}" \
             --set global.domain="${{ secrets.DOMAIN }}"
                       
       - name: Install ingress-nginx-config
