@@ -281,7 +281,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lb-ip
-          path: ./lb_ip.txt
+          path: ./helm/lb_ip.txt
           
       - name: Install PostgreSQL (bitnami)
         run: |
