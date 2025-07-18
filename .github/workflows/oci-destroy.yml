@@ -61,10 +61,36 @@ jobs:
           budget_alert_email   = "${{ secrets.BUDGET_ALERT_EMAIL }}"
           EOF
 
+      - name: Render backend_override.tf from template
+        run: |
+            sed \
+              -e "s|__BUCKET__|${{ secrets.OCI_TF_BUCKET }}|" \
+              -e "s|__NAMESPACE__|${{ secrets.OCI_NAMESPACE }}|" \
+              -e "s|__REGION__|${{ secrets.REGION }}|" \
+              -e "s|__COMPARTMENT_OCID__|${{ secrets.COMPARTMENT_OCID }}|" \
+              backend.tpl > backend_override.tf
+
       - name: Terraform Init
         env:
           TF_INPUT: false
-        run: terraform init
+          TF_VAR_tenancy_ocid: ${{ secrets.TENANCY_OCID }}
+          TF_VAR_user_ocid: ${{ secrets.USER_OCID }}
+          TF_VAR_fingerprint: ${{ secrets.FINGERPRINT }}
+          TF_VAR_region: ${{ secrets.REGION }}
+          TF_VAR_private_key_path: "./oci_api_key.pem"
+        run: |
+          # Ensure backend override exists
+          if [ ! -f backend_override.tf ]; then
+            echo "Error: backend_override.tf not found"
+            exit 1
+          fi
+          
+          # Initialize with backend configuration
+          terraform init \
+            -backend-config="tenancy_ocid=${{ secrets.TENANCY_OCID }}" \
+            -backend-config="user_ocid=${{ secrets.USER_OCID }}" \
+            -backend-config="fingerprint=${{ secrets.FINGERPRINT }}" \
+            -backend-config="private_key_path=./oci_api_key.pem"
 
       - name: Terraform Destroy
         env:
