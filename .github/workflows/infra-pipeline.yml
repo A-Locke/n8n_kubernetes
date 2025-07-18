@@ -60,35 +60,11 @@ jobs:
           oke_image_ocid       = "${{ secrets.OKE_IMAGE_OCID }}"
           budget_alert_email   = "${{ secrets.BUDGET_ALERT_EMAIL }}"
           EOF
-      - name: Generate backend_override.tf from secrets
-        run: |
-            cat <<EOF > backend_override.tf
-            terraform {
-              backend "oci" {
-                namespace      = "${{ secrets.OCI_NAMESPACE }}"
-                bucket         = "${{ secrets.OCI_TF_BUCKET }}"
-                region         = "${{ secrets.REGION }}"
-                key            = "env/dev/terraform.tfstate"
-              }
-            }
-            EOF
-      - name: Decode OCI private key
-        run: |
-          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}" | base64 -d > oci_api_key.pem
-
-      - name: Export OCI_PRIVATE_KEY to environment
-        run: |
-          printf "OCI_PRIVATE_KEY<<EOF\n%s\nEOF\n" "$(cat oci_api_key.pem | tr -d '\r')" >> "$GITHUB_ENV"
       - name: Terraform Init (backend)
         env:
-            TF_INPUT: false
-            OCI_TENANCY_OCID: ${{ secrets.TENANCY_OCID }}
-            OCI_USER_OCID: ${{ secrets.USER_OCID }}
-            OCI_FINGERPRINT: ${{ secrets.FINGERPRINT }}
-            OCI_REGION: ${{ secrets.REGION }}
-            OCI_PRIVATE_KEY: ${{ env.OCI_PRIVATE_KEY }}
-        run: terraform init -input=false -force-copy
-
+          TF_INPUT: false
+        run: terraform init
+        
       - name: Terraform Validate
         env:
           TF_INPUT: false
