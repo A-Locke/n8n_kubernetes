@@ -199,7 +199,7 @@ resource "oci_core_security_list" "vpn_sec_list" {
     protocol = "17"  
     source = "0.0.0.0/0"
     udp_options {
-      destination_port_range {
+      udp_options {
         min = 51820
         max = 51820
     }
