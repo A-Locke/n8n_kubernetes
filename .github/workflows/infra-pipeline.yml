@@ -60,11 +60,23 @@ jobs:
           oke_image_ocid       = "${{ secrets.OKE_IMAGE_OCID }}"
           budget_alert_email   = "${{ secrets.BUDGET_ALERT_EMAIL }}"
           EOF
-
+      - name: Generate backend_override.tf from secrets
+        run: |
+            cat <<EOF > backend_override.tf
+            terraform {
+              backend "oci" {
+                namespace      = "${{ secrets.OCI_NAMESPACE }}"
+                bucket         = "${{ secrets.OCI_TF_BUCKET }}"
+                region         = "${{ secrets.REGION }}"
+                key            = "env/dev/terraform.tfstate"
+                compartment_id = "${{ secrets.COMPARTMENT_OCID }}"
+              }
+            }
+            EOF
       - name: Terraform Init
         env:
           TF_INPUT: false
-        run: terraform init
+        run: terraform init -input=false -force-copy
 
       - name: Terraform Validate
         env:
@@ -80,6 +92,7 @@ jobs:
         env:
           TF_INPUT: false
         run: terraform apply -auto-approve -var-file="terraform.tfvars"
+        
       - name: Capture kubeconfig from Terraform
         id: export-kubeconfig
         run: terraform output -raw kubeconfig > kubeconfig.yaml
@@ -101,6 +114,8 @@ jobs:
     
       - name: Cleanup decoded secrets
         run: rm -f oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub vpn_key.pem terraform.tfvars
+      - name: Cleanup backend override file
+        run: rm -f backend_override.tf
         
         
    helm:
