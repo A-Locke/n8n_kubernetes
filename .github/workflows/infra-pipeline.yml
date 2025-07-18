@@ -139,7 +139,8 @@ jobs:
         run: |
             LB_SUBNET=$(terraform output -raw svc_lb_subnet_ocid)
             echo "Captured subnet: $LB_SUBNET"
-            echo "lb_subnet=$LB_SUBNET" >> "$GITHUB_OUTPUT"
+            LB_SUBNET_B64=$(echo -n "$LB_SUBNET" | base64 -w 0)
+            echo "lb_subnet=$LB_SUBNET_B64" >> "$GITHUB_OUTPUT"
       - name: Output VPN Public IP
         id: vpn-ip
         run: |
@@ -241,20 +242,21 @@ jobs:
       - name: Debug - Check passed variables
         run: |
           echo "Domain: ${{ secrets.DOMAIN }}"
-          echo "LB Subnet from terraform: ${{ needs.terraform.outputs.lb_subnet }}"
-          echo "Length of subnet string: ${#subnet_var}"
-        env:
-          subnet_var: ${{ needs.terraform.outputs.lb_subnet }}
+          echo "LB Subnet (base64) from terraform: ${{ needs.terraform.outputs.lb_subnet }}"
+          DECODED_SUBNET=$(echo "${{ needs.terraform.outputs.lb_subnet }}" | base64 -d)
+          echo "Decoded subnet: $DECODED_SUBNET"
+          echo "Length of decoded subnet: ${#DECODED_SUBNET}"
           
       - name: Install ingress-nginx-config
         run: |
+          DECODED_SUBNET=$(echo "${{ needs.terraform.outputs.lb_subnet }}" | base64 -d)
           helm dependency update ./ingress-nginx-config
           helm upgrade --install ingress-nginx-config ./ingress-nginx-config \
             --namespace ingress-nginx \
             --create-namespace \
             --values ./ingress-nginx-config/values.yaml \
             --set global.domain="${{ secrets.DOMAIN }}" \
-            --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet1'="${{ needs.terraform.outputs.lb_subnet }}"
+            --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet1'="$DECODED_SUBNET"
             
       - name: Wait for ingress-nginx LoadBalancer IP
         id: get-lb-ip
