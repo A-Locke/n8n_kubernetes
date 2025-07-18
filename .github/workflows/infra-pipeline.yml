@@ -76,13 +76,9 @@ jobs:
         run: |
           echo "${{ secrets.TF_PRIVATE_KEY_B64 }}" | base64 -d > oci_api_key.pem
 
-      - name: Export OCI_PRIVATE_KEY to environment
-        run: |
-            {
-              echo 'OCI_PRIVATE_KEY<<EOF'
-              cat oci_api_key.pem
-              echo 'EOF'
-            } >> "$GITHUB_ENV"
+     - name: Export OCI_PRIVATE_KEY to environment
+       run: |
+            printf "OCI_PRIVATE_KEY<<EOF\n%s\nEOF\n" "$(cat oci_api_key.pem | tr -d '\r')" >> "$GITHUB_ENV"
     
       - name: Terraform Init
         env:
@@ -91,7 +87,7 @@ jobs:
           OCI_USER_OCID: ${{ secrets.USER_OCID }}
           OCI_FINGERPRINT: ${{ secrets.FINGERPRINT }}
           OCI_REGION: ${{ secrets.REGION }}
-          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_PRIVATE_KEY: ${{ env.OCI_PRIVATE_KEY }}
         run: terraform init -input=false -force-copy
 
       - name: Terraform Validate
