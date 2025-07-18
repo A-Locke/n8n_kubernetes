@@ -72,12 +72,18 @@ jobs:
               }
             }
             EOF
-      - name: Set OCI_PRIVATE_KEY
+      - name: Decode OCI private key
         run: |
-            echo "${{ secrets.TF_PRIVATE_KEY_B64 }}" | base64 -d > oci_api_key.pem
-            echo "OCI_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
-            cat oci_api_key.pem >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
+          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}" | base64 -d > oci_api_key.pem
+
+      - name: Export OCI_PRIVATE_KEY to environment
+        run: |
+            {
+              echo 'OCI_PRIVATE_KEY<<EOF'
+              cat oci_api_key.pem
+              echo 'EOF'
+            } >> "$GITHUB_ENV"
+    
       - name: Terraform Init
         env:
           TF_INPUT: false
