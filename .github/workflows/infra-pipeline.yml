@@ -161,7 +161,7 @@ jobs:
       - name: Set up Kubernetes config
         run: |
           mkdir -p ~/.kube
-          cp kubeconfig.yaml ~/.kube/config
+          cp ../kubeconfig.yaml ~/.kube/config
 
       - name: Add cert-manager repo
         run: |
