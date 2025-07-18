@@ -7,6 +7,9 @@ jobs:
    terraform:
     name: Terraform Apply
     runs-on: ubuntu-latest
+    outputs:
+      lb_subnet: ${{ steps.subnet.outputs.lb_subnet }}
+      vpn_ip: ${{ steps.vpn-ip.outputs.vpn_ip }}
     defaults:
       run:
         working-directory: ./terraform
