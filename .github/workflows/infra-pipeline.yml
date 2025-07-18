@@ -79,28 +79,14 @@ jobs:
       - name: Export OCI_PRIVATE_KEY to environment
         run: |
           printf "OCI_PRIVATE_KEY<<EOF\n%s\nEOF\n" "$(cat oci_api_key.pem | tr -d '\r')" >> "$GITHUB_ENV"
-      - name: Debug OCI environment values
-        run: |
-            echo "OCI_TENANCY_OCID=${OCI_TENANCY_OCID}"
-            echo "OCI_USER_OCID=${OCI_USER_OCID}"
-            echo "OCI_FINGERPRINT=${OCI_FINGERPRINT}"
-            echo "OCI_REGION=${OCI_REGION}"
-            echo "OCI_PRIVATE_KEY length: ${#OCI_PRIVATE_KEY}"
+      - name: Terraform Init (backend)
         env:
+            TF_INPUT: false
             OCI_TENANCY_OCID: ${{ secrets.TENANCY_OCID }}
             OCI_USER_OCID: ${{ secrets.USER_OCID }}
             OCI_FINGERPRINT: ${{ secrets.FINGERPRINT }}
             OCI_REGION: ${{ secrets.REGION }}
             OCI_PRIVATE_KEY: ${{ env.OCI_PRIVATE_KEY }}
-            
-      - name: Terraform Init
-        env:
-          TF_INPUT: false
-          OCI_TENANCY_OCID: ${{ secrets.TENANCY_OCID }}
-          OCI_USER_OCID: ${{ secrets.USER_OCID }}
-          OCI_FINGERPRINT: ${{ secrets.FINGERPRINT }}
-          OCI_REGION: ${{ secrets.REGION }}
-          OCI_PRIVATE_KEY: ${{ env.OCI_PRIVATE_KEY }}
         run: terraform init -input=false -force-copy
 
       - name: Terraform Validate
