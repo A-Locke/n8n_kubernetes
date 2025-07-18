@@ -1,7 +1,7 @@
 output "kubeconfig" {
   description = "OKE kubeconfig for GitHub Actions"
   value       = data.oci_containerengine_cluster_kube_config.generated.content
-  sensitive   = true
+  sensitive   = false
 }
 output "svc_lb_subnet_ocid" {
   description = "Subnet OCID for the Kubernetes LoadBalancer"
