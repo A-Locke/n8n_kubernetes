@@ -21,20 +21,26 @@ variable "lb_ip" {
   default     = "127.0.0.1"
 }
 variable "domain" {
-  description = "Base domain for ingress DNS (e.g. locke.cz)"
+  description = "Base domain for ingress DNS
+  type        = string
+  default     = "example.com"
 }
 variable "vpn_wireguard_private_key" {
   description = "WireGuard private key for the VPN server"
+  type        = string
   sensitive   = true
+  default     = "PRIVATE_KEY_PLACEHOLDER"
 }
 variable "vpn_wireguard_public_key" {
   description = "WireGuard server public key for client"
   type        = string
   sensitive   = true
+  default     = "PUBLIC_KEY_PLACEHOLDER"
 }
 
 variable "vpn_client_private_key" {
   description = "WireGuard client private key"
   type        = string
   sensitive   = true
+  default     = "CLIENT_PRIVATE_KEY_PLACEHOLDER"
 }
