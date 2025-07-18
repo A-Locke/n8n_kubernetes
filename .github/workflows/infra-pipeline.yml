@@ -285,6 +285,7 @@ jobs:
           
       - name: Install PostgreSQL (bitnami)
         run: |
+          helm dependency update ./postgres
           helm upgrade --install postgres ./postgres \
                 --namespace data \
                 --create-namespace \
