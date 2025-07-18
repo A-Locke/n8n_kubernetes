@@ -4,6 +4,5 @@ terraform {
     bucket         = "{{bucket}}"
     region         = "{{region}}"
     key            = "{{key}}"
-    compartment_id = "{{compartment_id}}"
   }
 }

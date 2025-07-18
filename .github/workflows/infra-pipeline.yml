@@ -69,7 +69,6 @@ jobs:
                 bucket         = "${{ secrets.OCI_TF_BUCKET }}"
                 region         = "${{ secrets.REGION }}"
                 key            = "env/dev/terraform.tfstate"
-                compartment_id = "${{ secrets.COMPARTMENT_OCID }}"
               }
             }
             EOF
