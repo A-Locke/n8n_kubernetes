@@ -295,7 +295,10 @@ jobs:
                 --set global.postgresql.auth.password="${{ secrets.POSTGRES_USER_PASSWORD }}" \
                 --set postgresql.auth.postgresPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
                 --set postgresql.auth.password="${{ secrets.POSTGRES_USER_PASSWORD }}"
-     
+                
+      - name: Fetch pgAdmin chart dependencies
+        run: helm dependency build ./pgadmin     
+        
       - name: Install pgAdmin (runix/pgadmin4)
         run: |
           helm upgrade --install pgadmin ./pgadmin \
