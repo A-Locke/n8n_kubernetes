@@ -289,6 +289,7 @@ jobs:
           helm upgrade --install postgres ./postgres \
                 --namespace data \
                 --create-namespace \
+                --dependency-update \
                 --values ./postgres/values.yaml \
                 --set global.postgresql.auth.postgresPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
                 --set global.postgresql.auth.password="${{ secrets.POSTGRES_USER_PASSWORD }}" \
