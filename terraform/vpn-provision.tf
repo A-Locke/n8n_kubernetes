@@ -97,8 +97,3 @@ resource "null_resource" "vpn_provision" {
     }
   }
   
-  timeouts {
-    create = "15m"
-    delete = "5m"
-  }
-}
