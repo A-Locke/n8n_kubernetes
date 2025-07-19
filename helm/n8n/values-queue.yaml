@@ -127,15 +127,17 @@ worker:
 webhook:
   mode: queue
   url: ""
-  count: 10
+  count: 5
   resources:
     requests:
-      cpu: 50m
+      cpu: 100m
       memory: 128Mi
     limits:
-      cpu: 100m
+      cpu: 200m
       memory: 256Mi  
-
+  # ─── Disable MCP webhook component ─────────────────
+  mcp:
+    enabled: false
   # ─── Health probes ─────────────────────────────────
   livenessProbe:
     httpGet:

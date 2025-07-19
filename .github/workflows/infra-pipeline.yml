@@ -315,7 +315,7 @@ jobs:
             helm repo add community-charts https://community-charts.github.io/helm-charts
             helm repo update
             helm upgrade --install n8n community-charts/n8n \
-                --version 1.13.2 \
+                --version 1.13.4 \
                 --namespace workflows \
                 --create-namespace \
                 --values ./n8n/values-queue.yaml \
