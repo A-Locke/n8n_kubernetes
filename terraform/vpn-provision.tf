@@ -2,7 +2,6 @@ resource "null_resource" "vpn_provision" {
   count      = var.lb_ip == "127.0.0.1" ? 0 : 1
   depends_on = [oci_core_instance.vpn_instance]
 
-  # SSH settings for both file and remote-exec
   connection {
     type        = "ssh"
     host        = oci_core_instance.vpn_instance.public_ip
@@ -11,34 +10,34 @@ resource "null_resource" "vpn_provision" {
     timeout     = "2m"
   }
 
-  # 1) Upload the installer script
+  # 1) Upload installer
   provisioner "file" {
     content = <<-EOF
       #!/usr/bin/env bash
       set -euo pipefail
 
-      # 1. Disable any stub resolver
+      # 1. Install WireGuard, dnsmasq & iptables-persistent
+      export DEBIAN_FRONTEND=noninteractive
+      sudo apt-get update -q
+      sudo apt-get install -qy wireguard dnsmasq iptables-persistent
+
+      # 2. Disable any stub resolver now that apt worked
       sudo systemctl stop    systemd-resolved resolvconf.service    || true
       sudo systemctl disable systemd-resolved resolvconf.service    || true
       sudo systemctl mask   systemd-resolved resolvconf.service     || true
       sudo DEBIAN_FRONTEND=noninteractive apt-get purge -y resolvconf
 
-      # 2. Install dependencies
-      export DEBIAN_FRONTEND=noninteractive
-      sudo apt-get update -q
-      sudo apt-get install -qy wireguard dnsmasq iptables-persistent
-
       # 3. Enable IPv4 forwarding
       echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
       sudo sysctl -p
 
-      # 4. Open firewall for WG & DNS
+      # 4. Open firewall for WireGuard & DNS
       sudo iptables -I INPUT -p udp --dport 51820 -j ACCEPT
       sudo iptables -I INPUT -p udp --dport 53    -j ACCEPT
       sudo iptables -I INPUT -p tcp --dport 53    -j ACCEPT
       sudo netfilter-persistent save
 
-      # 5. Server WireGuard config
+      # 5. Write WireGuard server config
       sudo tee /etc/wireguard/wg0.conf > /dev/null <<-WGCONF
       [Interface]
       Address = 10.200.200.1/24
@@ -52,7 +51,7 @@ resource "null_resource" "vpn_provision" {
       sudo systemctl enable wg-quick@wg0
       sudo systemctl start  wg-quick@wg0
 
-      # 6. dnsmasq for internal names
+      # 6. Configure dnsmasq for your internal names
       sudo tee /etc/dnsmasq.d/locke-dns.conf > /dev/null <<-DNSMASQ
       listen-address=10.200.200.1
       bind-interfaces
@@ -62,7 +61,7 @@ resource "null_resource" "vpn_provision" {
 
       sudo systemctl restart dnsmasq
 
-      # 7. Ensure systemd-resolved won’t override DNS
+      # 7. Override systemd-resolved so it doesn’t steal port 53
       sudo mkdir -p /etc/systemd/resolved.conf.d
       sudo tee /etc/systemd/resolved.conf.d/dns.conf > /dev/null <<-RESOLV
       [Resolve]
@@ -72,7 +71,7 @@ resource "null_resource" "vpn_provision" {
       RESOLV
       sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
 
-      # 8. Generate client config
+      # 8. Generate the WireGuard client config
       sudo tee /home/ubuntu/wg0-client.conf > /dev/null <<-CLIENTCONF
       [Interface]
       PrivateKey = ${var.vpn_client_private_key}
@@ -92,7 +91,7 @@ resource "null_resource" "vpn_provision" {
     destination = "/home/ubuntu/vpn-setup.sh"
   }
 
-  # 2) Make it executable and run it under sudo, logging output
+  # 2) Run it and log everything
   provisioner "remote-exec" {
     inline = [
       "chmod +x /home/ubuntu/vpn-setup.sh",
