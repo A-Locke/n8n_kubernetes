@@ -8,7 +8,7 @@ resource "null_resource" "vpn_provision" {
       #!/usr/bin/env bash
       set -euo pipefail
 
-      # 1. Bootstrap DNS so apt won't stall on resolution
+      # 1. Bootstrap DNS to avoid resolution stalls
       sudo tee /etc/resolv.conf > /dev/null <<DNSCONF
       nameserver 1.1.1.1
       nameserver 8.8.8.8
@@ -19,11 +19,14 @@ resource "null_resource" "vpn_provision" {
       sudo apt-get update -q
       sudo DEBIAN_FRONTEND=noninteractive apt-get -qy install wireguard dnsmasq resolvconf
 
-      # 3. Enable IPv4 forwarding
+      # 3. Disable systemd-resolved to free port 53 for dnsmasq
+      sudo systemctl disable --now systemd-resolved
+
+      # 4. Enable IPv4 forwarding
       echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
       sudo sysctl -p
 
-      # 4. Write WireGuard server config
+      # 5. Write WireGuard server config
       sudo tee /etc/wireguard/wg0.conf > /dev/null <<WGCONF
       [Interface]
       Address = 10.200.200.1/24
@@ -37,28 +40,29 @@ resource "null_resource" "vpn_provision" {
       sudo systemctl enable wg-quick@wg0
       sudo systemctl start wg-quick@wg0
 
-      # 5. Configure dnsmasq for internal hostnames
+      # 6. Configure dnsmasq for internal hostnames
       sudo tee /etc/dnsmasq.d/locke-dns.conf > /dev/null <<DNSMASQ
-      address=/n8n-admin.${var.domain}/${var.lb_ip}
-      address=/pgadmin.${var.domain}/${var.lb_ip}
       listen-address=127.0.0.1
       listen-address=10.200.200.1
+      bind-interfaces
+      address=/n8n-admin.${var.domain}/${var.lb_ip}
+      address=/pgadmin.${var.domain}/${var.lb_ip}
       DNSMASQ
 
-      sudo systemctl restart dnsmasq
+      # Restart dnsmasq and ignore errors on first run
+      sudo systemctl restart dnsmasq || true
 
-      # 6. Point system resolver at dnsmasq
+      # 7. Generate DNS resolver override
       sudo mkdir -p /etc/systemd/resolved.conf.d
       sudo tee /etc/systemd/resolved.conf.d/dns.conf > /dev/null <<RESOLV
       [Resolve]
       DNS=127.0.0.1 10.200.200.1
       FallbackDNS=1.1.1.1 8.8.8.8
-      DNSStubListener=yes
+      DNSStubListener=no
       RESOLV
-      sudo systemctl restart systemd-resolved
       sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
 
-      # 7. Generate the client config
+      # 8. Generate the WireGuard client config
       sudo tee /home/ubuntu/wg0-client.conf > /dev/null <<CLIENTCONF
       [Interface]
       PrivateKey = ${var.vpn_client_private_key}
@@ -77,7 +81,6 @@ resource "null_resource" "vpn_provision" {
 
     destination = "/home/ubuntu/vpn-setup.sh"
 
-    # Upload uses SSH same as remote-exec
     connection {
       type        = "ssh"
       host        = oci_core_instance.vpn_instance.public_ip
