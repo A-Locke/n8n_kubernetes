@@ -328,7 +328,7 @@ jobs:
                 --wait --timeout 10m
       
     
-   post_helm:
+    post_helm:
       needs: helm
       runs-on: ubuntu-latest
       defaults:
@@ -342,18 +342,22 @@ jobs:
       - name: Decode VPN WireGuard Private Key
         run: |
             echo "${{ secrets.VPN_WIREGUARD_PRIV_KEY_B64 }}" | base64 -d > wg.key
+            chmod 600 wg.key
 
       - name: Decode VPN WireGuard Client Private Key
         run: |
             echo "${{ secrets.VPN_CLIENT_PRIVATE_KEY_B64 }}" | base64 -d > client.key
+            chmod 600 client.key
+            
       - name: Decode VPN SSH Private Key
         run: |
             echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
+            chmod 600 vpn_key.pem
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.12.2  # Consider upgrading to >=1.5.x
+          terraform_version: 1.12.2
 
       - name: Create terraform.tfvars with decoded secrets
         run: |
@@ -361,6 +365,10 @@ jobs:
           echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}"     | base64 -d > oke_ssh_key.pub
           echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"     | base64 -d > vpn_ssh_key.pub
           echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
+
+          # Set proper permissions
+          chmod 600 oci_api_key.pem vpn_key.pem
+          chmod 644 oke_ssh_key.pub vpn_ssh_key.pub
 
           tee terraform.tfvars > /dev/null <<EOF
           tenancy_ocid         = "${{ secrets.TENANCY_OCID }}"
@@ -426,10 +434,36 @@ jobs:
             -backend-config="user_ocid=${{ secrets.USER_OCID }}" \
             -backend-config="fingerprint=${{ secrets.FINGERPRINT }}" \
             -backend-config="private_key_path=./oci_api_key.pem"
-        
+
+      # Add a step to test SSH connectivity before applying
+      - name: Test SSH connectivity to VPN instance
+        run: |
+          VPN_IP=$(terraform output -raw vpn_instance_public_ip)
+          echo "Testing SSH connectivity to $VPN_IP"
+          
+          # Test SSH connectivity with timeout
+          timeout 30 ssh -i vpn_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$VPN_IP "echo 'SSH connection successful'"
+          
+          if [ $? -eq 0 ]; then
+            echo "SSH connectivity test passed"
+          else
+            echo "SSH connectivity test failed"
+            exit 1
+          fi
 
       - name: Apply VPN provisioning
+        env:
+          # Reduce log verbosity to see actual errors
+          TF_LOG: INFO
         run: |
+            # Validate variables first
+            echo "Validating WireGuard keys..."
+            if [ ! -s wg.key ] || [ ! -s client.key ]; then
+              echo "Error: WireGuard key files are empty or missing"
+              exit 1
+            fi
+            
+            # Apply with better error handling
             terraform apply \
               -target=null_resource.vpn_provision \
               -var="lb_ip=${{ needs.helm.outputs.lb_ip }}" \
@@ -451,10 +485,12 @@ jobs:
                   "ttl": 120,
                   "proxied": false
               }'
+              
       - name: Capture VPN public IP
         id: vpn-ip
         run: |
             echo "vpn_ip=$(terraform output -raw vpn_instance_public_ip)" >> "$GITHUB_OUTPUT"
+            
       - name: Fetch client config from VPN
         run: |
                 scp -o StrictHostKeyChecking=no -i vpn_key.pem ubuntu@${{ steps.vpn-ip.outputs.vpn_ip }}:/home/ubuntu/wg0-client.conf ./wg0-client.conf
@@ -463,7 +499,25 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
             name: wg0-client
-            path: ./wg0-client.conf
+            path: ./terraform/wg0-client.conf
+            
+      # Add error handling step
+      - name: Debug on failure
+        if: failure()
+        run: |
+          echo "Deployment failed. Gathering debug information..."
+          
+          # Try to get VPN instance logs if possible
+          VPN_IP=$(terraform output -raw vpn_instance_public_ip 2>/dev/null || echo "unknown")
+          if [ "$VPN_IP" != "unknown" ]; then
+            echo "Attempting to fetch logs from VPN instance..."
+            ssh -i vpn_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$VPN_IP \
+              "if [ -f /tmp/vpn-provision.log ]; then echo '=== VPN Provision Log ==='; cat /tmp/vpn-provision.log; fi" || echo "Could not fetch logs"
+          fi
+          
+          # Show Terraform state
+          terraform show || echo "Could not show terraform state"
             
       - name: Cleanup sensitive files
-        run: rm -f wg.key client.key vpn_key.pem
+        if: always()
+        run: rm -f wg.key client.key vpn_key.pem oci_api_key.pem
