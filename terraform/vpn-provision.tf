@@ -96,4 +96,4 @@ resource "null_resource" "vpn_provision" {
       timeout     = "10m"
     }
   }
-  
+}
