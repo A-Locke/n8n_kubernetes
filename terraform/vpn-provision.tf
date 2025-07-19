@@ -20,11 +20,25 @@ resource "null_resource" "vpn_provision" {
       sudo DEBIAN_FRONTEND=noninteractive apt-get -qy install wireguard dnsmasq resolvconf
 
       # 3. Disable systemd-resolved to free port 53 for dnsmasq
-      sudo systemctl disable --now systemd-resolved
+      
+	  sudo systemctl stop    systemd-resolved      resolvconf.service  || true
+	  sudo systemctl disable systemd-resolved      resolvconf.service  || true
+	  sudo systemctl mask   systemd-resolved       resolvconf.service  || true
+
+	  # (Optional) Purge the stub-resolver package so no background agent re-installs it
+	  sudo apt-get purge -y resolvconf systemd-resolved
 
       # 4. Enable IPv4 forwarding
       echo 'net.ipv4.ip_forward=1' | sudo tee -a /etc/sysctl.conf
       sudo sysctl -p
+	  
+	  # 4.5. Open firewall ports for WireGuard (UDP/51820) and DNS (TCP/UDP/53)
+      sudo iptables -I INPUT -p udp --dport 51820 -j ACCEPT
+      sudo iptables -I INPUT -p udp --dport 53    -j ACCEPT
+      sudo iptables -I INPUT -p tcp --dport 53    -j ACCEPT
+	  # (Optional) Persist your rules so they survive reboots
+      sudo apt-get install -y iptables-persistent
+      sudo netfilter-persistent save
 
       # 5. Write WireGuard server config
       sudo tee /etc/wireguard/wg0.conf > /dev/null <<WGCONF
@@ -40,7 +54,7 @@ resource "null_resource" "vpn_provision" {
       sudo systemctl enable wg-quick@wg0
       sudo systemctl start wg-quick@wg0
 
-      # 6. Configure dnsmasq for internal hostnames
+      # 6. Configure dnsmasq …
       sudo tee /etc/dnsmasq.d/locke-dns.conf > /dev/null <<DNSMASQ
       listen-address=127.0.0.1
       listen-address=10.200.200.1
@@ -49,7 +63,6 @@ resource "null_resource" "vpn_provision" {
       address=/pgadmin.${var.domain}/${var.lb_ip}
       DNSMASQ
 
-      # Restart dnsmasq and ignore errors on first run
       sudo systemctl restart dnsmasq || true
 
       # 7. Generate DNS resolver override
