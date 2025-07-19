@@ -66,9 +66,9 @@ resource "null_resource" "vpn_provision" {
       DNS        = 10.200.200.1
 
       [Peer]
-      PublicKey         = ${var.vpn_wireguard_public_key}
-      Endpoint          = ${oci_core_instance.vpn_instance.public_ip}:51820
-      AllowedIPs        = 0.0.0.0/0
+      PublicKey           = ${var.vpn_wireguard_public_key}
+      Endpoint            = ${oci_core_instance.vpn_instance.public_ip}:51820
+      AllowedIPs          = 0.0.0.0/0
       PersistentKeepalive = 25
       CLIENTCONF
 
@@ -90,8 +90,7 @@ resource "null_resource" "vpn_provision" {
       host        = oci_core_instance.vpn_instance.public_ip
       user        = "ubuntu"
       private_key = var.vpn_private_key
-      timeout     = "2m"               # SSH connect timeout
-      bastion_host = var.bastion_host  # if you’re using a jump host
+      timeout     = "2m"  # SSH connect timeout
     }
   }
 }
