@@ -464,6 +464,7 @@ jobs:
         exit 1
 
     - name: Apply VPN provisioning
+      timeout-minutes: 10
       env:
         # Reduce log verbosity to see actual errors
         TF_LOG: INFO
