@@ -70,20 +70,20 @@ main:
       path: /healthz
       port: "http"          # use the container port name, not the number
       scheme: HTTP
-    initialDelaySeconds: 30
-    timeoutSeconds:       3
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
     periodSeconds:       10
-    failureThreshold:     3
+    failureThreshold:     6
 
   readinessProbe:
     httpGet:
       path: /healthz
       port: "http"
       scheme: HTTP
-    initialDelaySeconds: 15
-    timeoutSeconds:       2
-    periodSeconds:        5
-    failureThreshold:     3
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
+    periodSeconds:       10
+    failureThreshold:     6
 
 # ────────────────────────────────────────────────────────────────
 # Worker (background queue)
@@ -106,20 +106,20 @@ worker:
       path: /healthz
       port: "http"
       scheme: HTTP
-    initialDelaySeconds: 30
-    timeoutSeconds:       3
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
     periodSeconds:       10
-    failureThreshold:     3
+    failureThreshold:     6
 
   readinessProbe:
     httpGet:
       path: /healthz
       port: "http"
       scheme: HTTP
-    initialDelaySeconds: 15
-    timeoutSeconds:       2
-    periodSeconds:        5
-    failureThreshold:     3
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
+    periodSeconds:       10
+    failureThreshold:     6
 
 # ────────────────────────────────────────────────────────────────
 # Webhook listener (public webhooks)
@@ -142,17 +142,17 @@ webhook:
       path: /healthz
       port: "http"
       scheme: HTTP
-    initialDelaySeconds: 30
-    timeoutSeconds:       3
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
     periodSeconds:       10
-    failureThreshold:     3
+    failureThreshold:     6
 
   readinessProbe:
     httpGet:
       path: /healthz
       port: "http"
       scheme: HTTP
-    initialDelaySeconds: 15
-    timeoutSeconds:       2
-    periodSeconds:        5
-    failureThreshold:     3
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
+    periodSeconds:       10
+    failureThreshold:     6
