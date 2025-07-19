@@ -89,4 +89,5 @@ provisioner "file" {
     private_key = var.vpn_private_key
     timeout     = "2m"
   }
+ }
 }
