@@ -59,10 +59,10 @@ main:
   resources:
     requests:
       cpu:    200m
-      memory: 256Mi
+      memory: 2Gi
     limits:
       cpu:    250m
-      memory: 512Mi
+      memory: 4Gi
 
   # ─── Health probes ─────────────────────────────────
   livenessProbe:
@@ -90,7 +90,15 @@ main:
 # ────────────────────────────────────────────────────────────────
 worker:
   mode: queue
-  count: 1
+  count: 5
+  
+  resources:
+    requests:
+      cpu: 150m
+      memory: 512Mi
+    limits:
+      cpu: 250m
+      memory: 1Gi
 
   # ─── Health probes ─────────────────────────────────
   livenessProbe:
@@ -119,7 +127,14 @@ worker:
 webhook:
   mode: queue
   url: ""
-  count: 1
+  count: 10
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 256Mi  
 
   # ─── Health probes ─────────────────────────────────
   livenessProbe:
