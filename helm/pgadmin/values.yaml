@@ -26,6 +26,9 @@ pgadmin4:
     type: ClusterIP
     port: 80
 
+  persistentVolume:
+    enabled: false
+
   ingress:
     enabled: true
     className: nginx
