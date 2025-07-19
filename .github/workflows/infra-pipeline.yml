@@ -336,25 +336,80 @@ jobs:
           working-directory: ./terraform
 
       steps:
-        - name: Checkout repository
-          uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
           
-        - name: Decode VPN WireGuard Private Key
-          run: |
+      - name: Decode VPN WireGuard Private Key
+        run: |
             echo "${{ secrets.VPN_WIREGUARD_PRIV_KEY_B64 }}" | base64 -d > wg.key
 
-        - name: Decode VPN WireGuard Client Private Key
-          run: |
+      - name: Decode VPN WireGuard Client Private Key
+        run: |
             echo "${{ secrets.VPN_CLIENT_PRIVATE_KEY_B64 }}" | base64 -d > client.key
-        - name: Decode VPN SSH Private Key
-          run: |
+      - name: Decode VPN SSH Private Key
+        run: |
             echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
 
-        - name: Terraform Init
-          run: terraform init
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.2  # Consider upgrading to >=1.5.x
 
-        - name: Apply VPN provisioning
-          run: |
+      - name: Create terraform.tfvars with decoded secrets
+        run: |
+          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}"    | base64 -d > oci_api_key.pem
+          echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}"     | base64 -d > oke_ssh_key.pub
+          echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"     | base64 -d > vpn_ssh_key.pub
+          echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
+
+          tee terraform.tfvars > /dev/null <<EOF
+          tenancy_ocid         = "${{ secrets.TENANCY_OCID }}"
+          user_ocid            = "${{ secrets.USER_OCID }}"
+          region               = "${{ secrets.REGION }}"
+          availability_domain  = "${{ secrets.AVAILABILITY_DOMAIN }}"
+          fingerprint          = "${{ secrets.FINGERPRINT }}"
+
+          private_key = <<EOKEY
+          $(cat oci_api_key.pem)
+          EOKEY
+
+          compartment_ocid     = "${{ secrets.COMPARTMENT_OCID }}"
+          vcn_cidr_block       = "${{ secrets.VCN_CIDR_BLOCK }}"
+          oke_k8s_version      = "${{ secrets.OKE_K8S_VERSION }}"
+
+          oke_ssh_key = <<EOKEY
+          $(cat oke_ssh_key.pub)
+          EOKEY
+
+          vpn_ssh_key = <<EOKEY
+          $(cat vpn_ssh_key.pub)
+          EOKEY
+
+          vpn_private_key = <<EOKEY
+          $(cat vpn_key.pem)
+          EOKEY
+
+          vpn_instance_shape   = "${{ secrets.VPN_INSTANCE_SHAPE }}"
+          vpn_image_ocid       = "${{ secrets.VPN_IMAGE_OCID }}"
+          oke_node_shape       = "${{ secrets.OKE_NODE_SHAPE }}"
+          oke_image_ocid       = "${{ secrets.OKE_IMAGE_OCID }}"
+          budget_alert_email   = "${{ secrets.BUDGET_ALERT_EMAIL }}"
+          EOF
+          
+      - name: Render backend_override.tf from template
+        run: |
+            sed \
+              -e "s|__BUCKET__|${{ secrets.OCI_TF_BUCKET }}|" \
+              -e "s|__NAMESPACE__|${{ secrets.OCI_NAMESPACE }}|" \
+              -e "s|__REGION__|${{ secrets.REGION }}|" \
+              -e "s|__COMPARTMENT_OCID__|${{ secrets.COMPARTMENT_OCID }}|" \
+              backend.tpl > backend_override.tf
+              
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Apply VPN provisioning
+        run: |
             terraform apply \
               -target=null_resource.vpn_provision \
               -var="lb_ip=${{ needs.helm.outputs.lb_ip }}" \
@@ -364,8 +419,8 @@ jobs:
               -var="vpn_client_private_key=$(cat client.key)" \
               -auto-approve
 
-        - name: Create public DNS record for webhook
-          run: |
+      - name: Create public DNS record for webhook
+        run: |
             curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
               -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
               -H "Content-Type: application/json" \
@@ -376,19 +431,19 @@ jobs:
                   "ttl": 120,
                   "proxied": false
               }'
-        - name: Capture VPN public IP
-          id: vpn-ip
-          run: |
+      - name: Capture VPN public IP
+        id: vpn-ip
+        run: |
             echo "vpn_ip=$(terraform output -raw vpn_instance_public_ip)" >> "$GITHUB_OUTPUT"
-        - name: Fetch client config from VPN
-          run: |
+      - name: Fetch client config from VPN
+        run: |
                 scp -o StrictHostKeyChecking=no -i vpn_key.pem ubuntu@${{ steps.vpn-ip.outputs.vpn_ip }}:/home/ubuntu/wg0-client.conf ./wg0-client.conf
 
-        - name: Upload WireGuard client config
-          uses: actions/upload-artifact@v4
-          with:
+      - name: Upload WireGuard client config
+        uses: actions/upload-artifact@v4
+        with:
             name: wg0-client
             path: ./wg0-client.conf
             
-        - name: Cleanup sensitive files
-          run: rm -f wg.key client.key vpn_key.pem
+      - name: Cleanup sensitive files
+        run: rm -f wg.key client.key vpn_key.pem
