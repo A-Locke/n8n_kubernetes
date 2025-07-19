@@ -76,6 +76,15 @@ resource "null_resource" "vpn_provision" {
     EOF
 
     destination = "/home/ubuntu/vpn-setup.sh"
+
+    # Upload uses SSH same as remote-exec
+    connection {
+      type        = "ssh"
+      host        = oci_core_instance.vpn_instance.public_ip
+      user        = "ubuntu"
+      private_key = var.vpn_private_key
+      timeout     = "2m"
+    }
   }
 
   # 2) Execute it under a timeout so Terraform can fail fast
@@ -90,7 +99,7 @@ resource "null_resource" "vpn_provision" {
       host        = oci_core_instance.vpn_instance.public_ip
       user        = "ubuntu"
       private_key = var.vpn_private_key
-      timeout     = "2m"  # SSH connect timeout
+      timeout     = "2m"
     }
   }
 }
