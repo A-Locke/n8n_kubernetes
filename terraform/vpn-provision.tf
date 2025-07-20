@@ -101,7 +101,8 @@ resource "null_resource" "vpn_provision" {
   provisioner "remote-exec" {
     inline = [
       "chmod +x /home/ubuntu/vpn-setup.sh",
-      "sudo /home/ubuntu/vpn-setup.sh 2>&1 | tee /tmp/vpn-setup.log"
+      "sudo /home/ubuntu/vpn-setup.sh 2>&1 | tee /tmp/vpn-setup.log",
+      "sudo systemctl restart wg-quick@wg0"
     ]
   }
 }
