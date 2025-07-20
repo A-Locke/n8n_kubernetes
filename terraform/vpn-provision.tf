@@ -58,7 +58,7 @@ resource "null_resource" "vpn_provision" {
       sudo tee /etc/dnsmasq.d/locke-dns.conf > /dev/null <<-DNSMASQ
       listen-address=10.200.200.1
       bind-interfaces
-      address=/n8n-admin.${var.domain}/${var.lb_ip}
+      address=/n8n.${var.domain}/${var.lb_ip}
       address=/pgadmin.${var.domain}/${var.lb_ip}
       DNSMASQ
 
