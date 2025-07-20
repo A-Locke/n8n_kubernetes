@@ -307,11 +307,11 @@ jobs:
             --namespace data \
             --create-namespace \
             --values ./pgadmin/values.yaml \
-            --set env.email="${{ secrets.PGADMIN_EMAIL }}" \
-            --set env.password="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
-            --set ingress.hosts[0].host=pgadmin.${{ secrets.DOMAIN }} \
-            --set ingress.tls[0].hosts[0]=pgadmin.${{ secrets.DOMAIN }}
-            
+            --set pgadmin4.env.email="${{ secrets.PGADMIN_EMAIL }}" \
+            --set pgadmin4.env.password="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
+            --set pgadmin4.ingress.hosts[0].host=pgadmin.${{ secrets.DOMAIN }} \
+            --set pgadmin4.ingress.tls[0].hosts[0]=pgadmin.${{ secrets.DOMAIN }}
+
       - name: Install n8n (community-charts)
         run: |
             helm repo add community-charts https://community-charts.github.io/helm-charts
