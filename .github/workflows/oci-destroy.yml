@@ -1,11 +1,11 @@
-name: OCI Infra Destroy
+name: OCI Destroy Pipeline
 
 on:
   workflow_dispatch:
 
 jobs:
-  terraform_destroy:
-    name: Terraform Destroy
+  prepare_and_helm_destroy:
+    name: Prepare & Helm Uninstall Charts
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -15,12 +15,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.12.2  # Consider upgrading to >=1.5.x
-
-      - name: Create terraform.tfvars with decoded secrets
+      - name: Decode terraform vars and keys
         run: |
           echo "${{ secrets.TF_PRIVATE_KEY_B64 }}"    | base64 -d > oci_api_key.pem
           echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}"     | base64 -d > oke_ssh_key.pub
@@ -63,12 +58,12 @@ jobs:
 
       - name: Render backend_override.tf from template
         run: |
-            sed \
-              -e "s|__BUCKET__|${{ secrets.OCI_TF_BUCKET }}|" \
-              -e "s|__NAMESPACE__|${{ secrets.OCI_NAMESPACE }}|" \
-              -e "s|__REGION__|${{ secrets.REGION }}|" \
-              -e "s|__COMPARTMENT_OCID__|${{ secrets.COMPARTMENT_OCID }}|" \
-              backend.tpl > backend_override.tf
+          sed \
+            -e "s|__BUCKET__|${{ secrets.OCI_TF_BUCKET }}|" \
+            -e "s|__NAMESPACE__|${{ secrets.OCI_NAMESPACE }}|" \
+            -e "s|__REGION__|${{ secrets.REGION }}|" \
+            -e "s|__COMPARTMENT_OCID__|${{ secrets.COMPARTMENT_OCID }}|" \
+            backend.tpl > backend_override.tf
 
       - name: Terraform Init
         env:
@@ -79,26 +74,104 @@ jobs:
           TF_VAR_region: ${{ secrets.REGION }}
           TF_VAR_private_key_path: "./oci_api_key.pem"
         run: |
-          # Ensure backend override exists
           if [ ! -f backend_override.tf ]; then
             echo "Error: backend_override.tf not found"
             exit 1
           fi
-          
-          # Initialize with backend configuration
           terraform init \
             -backend-config="tenancy_ocid=${{ secrets.TENANCY_OCID }}" \
             -backend-config="user_ocid=${{ secrets.USER_OCID }}" \
             -backend-config="fingerprint=${{ secrets.FINGERPRINT }}" \
             -backend-config="private_key_path=./oci_api_key.pem"
 
-      - name: Terraform Destroy
+      - name: Capture kubeconfig from Terraform
+        run: |
+          terraform output -raw kubeconfig > kubeconfig.yaml
+
+      - name: Set up Kubernetes config
+        run: |
+          mkdir -p ~/.kube
+          cp kubeconfig.yaml ~/.kube/config
+
+      - name: Uninstall n8n
+        run: helm uninstall n8n --namespace workflows --wait --timeout 5m || true
+
+      - name: Uninstall pgAdmin
+        run: helm uninstall pgadmin --namespace data --wait --timeout 5m || true
+
+      - name: Uninstall PostgreSQL
+        run: helm uninstall postgres --namespace data --wait --timeout 5m || true
+
+      - name: Uninstall ingress-nginx-config
+        run: helm uninstall ingress-nginx-config --namespace ingress-nginx --wait --timeout 5m || true
+
+      - name: Uninstall cert-manager-config
+        run: helm uninstall cert-manager-config --namespace cert-manager --wait --timeout 5m || true
+
+      - name: Uninstall cert-manager
+        run: helm uninstall cert-manager --namespace cert-manager --wait --timeout 5m || true
+
+      - name: Cleanup temporary files
+        if: always()
+        run: rm -f oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub vpn_key.pem terraform.tfvars backend_override.tf kubeconfig.yaml
+
+  terraform_destroy:
+    name: Terraform Destroy
+    runs-on: ubuntu-latest
+    needs: prepare_and_helm_destroy
+    defaults:
+      run:
+        working-directory: ./terraform
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.2
+
+      - name: Decode terraform vars and keys
+        run: |
+          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}"    | base64 -d > oci_api_key.pem
+          echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}"     | base64 -d > oke_ssh_key.pub
+          echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"     | base64 -d > vpn_ssh_key.pub
+          echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
+
+      - name: Render backend_override.tf from template
+        run: |
+          sed \
+            -e "s|__BUCKET__|${{ secrets.OCI_TF_BUCKET }}|" \
+            -e "s|__NAMESPACE__|${{ secrets.OCI_NAMESPACE }}|" \
+            -e "s|__REGION__|${{ secrets.REGION }}|" \
+            -e "s|__COMPARTMENT_OCID__|${{ secrets.COMPARTMENT_OCID }}|" \
+            backend.tpl > backend_override.tf
+
+      - name: Terraform Init
         env:
           TF_INPUT: false
+          TF_VAR_tenancy_ocid: ${{ secrets.TENANCY_OCID }}
+          TF_VAR_user_ocid: ${{ secrets.USER_OCID }}
+          TF_VAR_fingerprint: ${{ secrets.FINGERPRINT }}
+          TF_VAR_region: ${{ secrets.REGION }}
+          TF_VAR_private_key_path: "./oci_api_key.pem"
+        run: |
+          terraform init \
+            -backend-config="tenancy_ocid=${{ secrets.TENANCY_OCID }}" \
+            -backend-config="user_ocid=${{ secrets.USER_OCID }}" \
+            -backend-config="fingerprint=${{ secrets.FINGERPRINT }}" \
+            -backend-config="private_key_path=./oci_api_key.pem"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan Destroy
+        run: terraform plan -destroy -no-color -var-file="terraform.tfvars"
+
+      - name: Terraform Destroy
         run: terraform destroy -auto-approve -var-file="terraform.tfvars"
 
-      - name: Cleanup decoded secrets
-        run: rm -f oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub vpn_key.pem terraform.tfvars
-
-      - name: Cleanup backend override file
-        run: rm -f backend_override.tf
+      - name: Cleanup sensitive files
+        if: always()
+        run: rm -f oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub vpn_key.pem backend_override.tf terraform.tfvars
