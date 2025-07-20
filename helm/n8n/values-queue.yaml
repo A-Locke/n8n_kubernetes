@@ -56,7 +56,7 @@ redis:
 # Main (UI / REST API / scheduler)
 # ────────────────────────────────────────────────────────────────
 main:
-  config:
+  extraEnvVars:
     N8N_HOST: ""
     N8N_PROTOCOL: https
     N8N_PORT: 443
