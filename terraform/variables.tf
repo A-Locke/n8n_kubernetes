@@ -32,7 +32,7 @@ variable "vpn_wireguard_private_key" {
   default     = "PRIVATE_KEY_PLACEHOLDER"
 }
 variable "vpn_wireguard_public_key" {
-  description = "WireGuard server public key for client"
+  description = "WireGuard server public key"
   type        = string
   sensitive   = true
   default     = "PUBLIC_KEY_PLACEHOLDER"
@@ -43,4 +43,10 @@ variable "vpn_client_private_key" {
   type        = string
   sensitive   = true
   default     = "CLIENT_PRIVATE_KEY_PLACEHOLDER"
+}
+variable "vpn_wireguard_client_public_key" {
+  description = "WireGuard client public key"
+  type        = string
+  sensitive   = true
+  default     = "CLIENT_PUBLIC_KEY_PLACEHOLDER"
 }
