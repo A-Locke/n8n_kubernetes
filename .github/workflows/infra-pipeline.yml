@@ -258,7 +258,7 @@ jobs:
             --set global.domain="${{ secrets.DOMAIN }}" \
             --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet1'="$DECODED_SUBNET" \
             --set 'controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-health-check-port'="0" \
-            --set 'controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-health-check-protocol'="HTTP
+            --set 'controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-health-check-protocol'="HTTP"
             
       - name: Wait for ingress-nginx LoadBalancer IP
         id: get-lb-ip
