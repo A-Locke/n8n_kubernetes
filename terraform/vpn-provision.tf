@@ -45,6 +45,9 @@ resource "null_resource" "vpn_provision" {
       ListenPort = 51820
       PostUp   = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
       PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+      [Peer]
+      PublicKey    = ${var.vpn_client_public_key}
+      AllowedIPs   = 10.200.200.2/32
       WGCONF
 
       sudo chmod 600 /etc/wireguard/wg0.conf

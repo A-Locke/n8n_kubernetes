@@ -256,7 +256,9 @@ jobs:
             --create-namespace \
             --values ./ingress-nginx-config/values.yaml \
             --set global.domain="${{ secrets.DOMAIN }}" \
-            --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet1'="$DECODED_SUBNET"
+            --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet1'="$DECODED_SUBNET" \
+            --set 'controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-health-check-port'="0" \
+            --set 'controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-health-check-protocol'="HTTP
             
       - name: Wait for ingress-nginx LoadBalancer IP
         id: get-lb-ip
@@ -323,6 +325,9 @@ jobs:
                 --set ingress.hosts[0].host=n8n-admin.${{ secrets.DOMAIN }} \
                 --set ingress.hosts[1].host=n8n-webhook.${{ secrets.DOMAIN }} \
                 --set webhook.url=https://n8n-webhook.${{ secrets.DOMAIN }} \
+                --set main.config.N8N_HOST=n8n-admin.${{ secrets.DOMAIN }} \                
+                --set main.config.N8N_PROTOCOL=https \
+                --set main.config.N8N_PORT=443 \
                 --set ingress.tls[0].hosts[0]=n8n-admin.${{ secrets.DOMAIN }} \
                 --set ingress.tls[0].hosts[1]=n8n-webhook.${{ secrets.DOMAIN }} \
                 --wait --timeout 10m
@@ -343,6 +348,10 @@ jobs:
       run: |
           echo "${{ secrets.VPN_WIREGUARD_PRIV_KEY_B64 }}" | base64 -d > wg.key
           chmod 600 wg.key
+    - name: Decode VPN WireGuard Client Public Key
+      run: |
+            echo "${{ secrets.VPN_CLIENT_PUBLIC_KEY_B64 }}" | base64 -d > client.pub
+            chmod 644 client.pub
 
     - name: Decode VPN WireGuard Client Private Key
       run: |
