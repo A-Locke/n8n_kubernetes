@@ -56,10 +56,6 @@ redis:
 # Main (UI / REST API / scheduler)
 # ────────────────────────────────────────────────────────────────
 main:
-  extraEnvVars:
-    N8N_HOST: ""
-    N8N_PROTOCOL: https
-    N8N_PORT: 443
   resources:
     requests:
       cpu:    200m

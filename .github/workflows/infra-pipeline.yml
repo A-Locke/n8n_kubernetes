@@ -322,13 +322,10 @@ jobs:
                 --create-namespace \
                 --values ./n8n/values-queue.yaml \
                 --set externalPostgresql.password="${{ secrets.POSTGRES_USER_PASSWORD }}" \
-                --set ingress.hosts[0].host=n8n-admin.${{ secrets.DOMAIN }} \
+                --set ingress.hosts[0].host=n8n.${{ secrets.DOMAIN }} \
                 --set ingress.hosts[1].host=n8n-webhook.${{ secrets.DOMAIN }} \
                 --set webhook.url=https://n8n-webhook.${{ secrets.DOMAIN }} \
-                --set main.extraEnvVars.N8N_HOST=n8n-admin.${{ secrets.DOMAIN }} \
-                --set main.extraEnvVars.N8N_PROTOCOL=https \
-                --set main.extraEnvVars.N8N_PORT=443 \
-                --set ingress.tls[0].hosts[0]=n8n-admin.${{ secrets.DOMAIN }} \
+                --set ingress.tls[0].hosts[0]=n8n.${{ secrets.DOMAIN }} \
                 --set ingress.tls[0].hosts[1]=n8n-webhook.${{ secrets.DOMAIN }} \
                 --wait --timeout 10m
       
