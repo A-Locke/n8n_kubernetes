@@ -35,6 +35,9 @@ resource "null_resource" "vpn_provision" {
       sudo iptables -I INPUT -p udp --dport 51820 -j ACCEPT
       sudo iptables -I INPUT -p udp --dport 53    -j ACCEPT
       sudo iptables -I INPUT -p tcp --dport 53    -j ACCEPT
+      # Remove any default REJECT in the FORWARD chain so VPN traffic is allowed
+      sudo iptables -D FORWARD 1 || true
+      sudo netfilter-persistent save
       sudo netfilter-persistent save
 
       # 5. Write WireGuard server config
@@ -43,8 +46,8 @@ resource "null_resource" "vpn_provision" {
       Address = 10.200.200.1/24
       PrivateKey = ${var.vpn_wireguard_private_key}
       ListenPort = 51820
-      PostUp   = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-      PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+      PostUp   = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ens3 -j MASQUERADE
+      PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o ens3 -j MASQUERADE
       [Peer]
       PublicKey    = ${var.vpn_wireguard_client_public_key}
       AllowedIPs   = 10.200.200.2/32
