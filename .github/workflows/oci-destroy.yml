@@ -86,7 +86,13 @@ jobs:
         run: helm uninstall pgadmin --namespace data --wait --timeout 5m || true
 
       - name: Uninstall PostgreSQL
-        run: helm uninstall postgres --namespace data --wait --timeout 5m || true
+        run: |
+          helm uninstall postgres --namespace data --wait --timeout 5m || true
+
+      - name: Delete Postgres PVCs
+        run: |
+          echo "Deleting PostgreSQL PVCs (this will trigger volume deletion if StorageClass reclaim policy is Delete)..."
+          kubectl delete pvc -l app.kubernetes.io/instance=postgres -n data || true
 
       - name: Uninstall ingress-nginx-config
         run: helm uninstall ingress-nginx-config --namespace ingress-nginx --wait --timeout 5m || true
