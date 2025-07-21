@@ -65,6 +65,11 @@ jobs:
             -e "s|__COMPARTMENT_OCID__|${{ secrets.COMPARTMENT_OCID }}|" \
             backend.tpl > backend_override.tf
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.2
+
       - name: Terraform Init
         env:
           TF_INPUT: false
@@ -113,7 +118,8 @@ jobs:
 
       - name: Cleanup temporary files
         if: always()
-        run: rm -f oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub vpn_key.pem terraform.tfvars backend_override.tf kubeconfig.yaml
+        run: |
+          rm -f oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub vpn_key.pem terraform.tfvars backend_override.tf kubeconfig.yaml
 
   terraform_destroy:
     name: Terraform Destroy
