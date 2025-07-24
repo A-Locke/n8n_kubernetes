@@ -1,4 +1,4 @@
-name: OCI Infra Pipeline
+name: OCI Create Pipeline
 
 on:
   workflow_dispatch:
