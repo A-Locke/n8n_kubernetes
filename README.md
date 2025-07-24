@@ -2,17 +2,56 @@
 
 This repository provides a GitHub Actions CI/CD pipeline to deploy an Oracle Cloud Infrastructure (OCI) Kubernetes cluster, install components (Cert‑Manager, Ingress‑Nginx, PostgreSQL, pgAdmin, n8n), and provision a WireGuard VPN for secure access.
 
+---
+
+## n8n Modes: Regular vs Queue
+
+n8n can run in two modes:
+
+**Regular Mode (default)**
+- All components—webhook listener, workflow workers, database—run in a single container.
+- Easy to get started but can become CPU‑ and memory‑bound under load.
+- Scaling requires duplicating the entire pod, which affects both listener and workers.
+
+**Queue Mode (production grade)**
+- Separates the **webhook listener** from **workflow workers**.
+- Incoming requests are enqueued (e.g., via Redis) and processed by a pool of worker pods.
+- Enables independent horizontal scaling of workers without impacting the listener.
+- **Example**: A burst of 40 simultaneous chat‑triggered workflows enqueues quickly; the listener remains responsive while 10–20 worker pods spin up to process the backlog in parallel, clearing the queue in seconds.
+
+---
+
+## Oracle Free Tier Resources
+
+Leverage OCI’s Always Free tier:
+
+1. **2× Ampere A1 Compute** (`VM.Standard.A1.Flex`, ARM‑based): up to 4 OCPUs & 24 GB RAM each for your Kubernetes Node Pool.
+2. **1× AMD Compute Instance** (`VM.Standard.E2.1`): 1 OCPU & 8 GB RAM for sidecar services (DNS cache, VPN).
+3. **Block Volumes**, **Object Storage**, **Load Balancer**, **Networking** within free limits.
+
+*Always choose shapes labeled **“Always Free Eligible”**.*
+
+---
+
+## Infrastructure Layout
+
+1. **Kubernetes Node Pool**
+   - Two **Ampere A1** free‑tier shapes running OKE (ARM‑optimized).  
+2. **AMD Compute Instance**
+   - Hosts a **DNS resolver** (e.g., CoreDNS cache) and **WireGuard VPN** server.  
+   - Provides secure access to cluster ingresses (e.g., n8n webhook endpoints).
+
+---
+
 ## Table of Contents
 
 * [Prerequisites](#prerequisites)
-* [Generating Keys & Base64 Encoding](#generating-keys--base64-encoding)
-
-  * [OCI API Key](#oci-api-key)
-  * [SSH Keys](#ssh-keys)
-  * [WireGuard Keys](#wireguard-keys)
-* [Creating GitHub Secrets](#creating-github-secrets)
+* [Secrets Setup](#secrets-setup)
+  * [1) Oracle Variables (Free Tier)](#1-oracle-variables-free-tier)
+  * [2) Generated Keys & Base64](#2-generated-keys--base64)
+  * [3) Cloudflare](#3-cloudflare)
+  * [4) Other Secrets](#4-other-secrets)
 * [Pipeline Overview](#pipeline-overview)
-
   * [Terraform Apply Job](#terraform-apply-job)
   * [Helm Install Charts Job](#helm-install-charts-job)
   * [Post-Helm VPN Provision Job](#post-helm-vpn-provision-job)
@@ -24,125 +63,64 @@ This repository provides a GitHub Actions CI/CD pipeline to deploy an Oracle Clo
 ## Prerequisites
 
 1. **OCI account** with:
-
-   * A compartment for resources
-   * Object Storage bucket and namespace
-   * Cloud Shell or local `oci` CLI configured
+   - A compartment for resources
+   - Object Storage bucket & namespace
+   - Cloud Shell or local `oci` CLI configured
 2. **GitHub repository** with this code
-3. **kubectl**, **helm**, **terraform** installed locally for testing
-4. **PowerShell** (Windows) or **bash** (Linux/macOS) to generate and encode keys
+3. **kubectl**, **helm**, **terraform** installed locally
+4. **PowerShell** (Windows) or **bash** (Linux/macOS) for key generation
 
 ---
 
-## Generating Keys & Base64 Encoding
+## Secrets Setup
 
-All private and public key files must be stored as Base64 strings in GitHub Actions secrets.
+Organize and store all secrets as GitHub Actions repository secrets.
 
-### OCI API Key
+### 1) Oracle Variables (Free Tier)
+Extract the following from the OCI Console (Identity & Security → Users, Compartments, Networking, Compute):
+- **TENANCY_OCID**, **USER_OCID**, **FINGERPRINT** (API Key → Add API Key).  
+- **REGION**, **COMPARTMENT_OCID** (Compartments).  
+- **VCN_CIDR_BLOCK**, **SUBNET_OCIDs**, **AVAILABILITY_DOMAIN** (Networking → Virtual Cloud Networks).  
+- **OKE_NODE_SHAPE**: `VM.Standard.A1.Flex` (Max 4 OCPUs, 24 GB RAM).  
+- **VPN_INSTANCE_SHAPE**: `VM.Standard.E2.1`  
 
-1. In the OCI console, go to **Identity & Security → Users**.
-2. Click your user → **API Keys → Add API Key**.
-3. Download the private key (e.g., `oci_api_key.pem`).
+> **Note**: Only use shapes marked **“Always Free Eligible”**.
 
-**Base64 encode (bash)**:
+### 2) Generated Keys & Base64
+Generate locally and encode to single‑line Base64:
 
+#### SSH Keys
 ```bash
-base64 -w 0 oci_api_key.pem > oci_api_key_b64.txt
-```
-
-**Base64 encode (PowerShell)**:
-
-```powershell
-Get-Content .\oci_api_key.pem -Encoding byte | \n  [Convert]::ToBase64String(\$\_) | Out-File oci_api_key_b64.txt -NoNewline
-```
-
-### SSH Keys for OKE & VPN
-
-Generate separate key pairs for Kubernetes node SSH and VPN instance SSH:
-
-```bash
-ssh-keygen -t rsa -b 4096 -f oke_ssh_key  -N ""
+ssh-keygen -t rsa -b 4096 -f oke_ssh_key -N ""
 ssh-keygen -t rsa -b 4096 -f vpn_ssh_key -N ""
+base64 -w 0 oke_ssh_key      > oke_ssh_key_b64.txt
+base64 -w 0 oke_ssh_key.pub  > oke_ssh_pub_b64.txt
+base64 -w 0 vpn_ssh_key      > vpn_ssh_key_b64.txt
+base64 -w 0 vpn_ssh_key.pub  > vpn_ssh_pub_b64.txt
 ```
 
-Encode both **public** and **private** keys:
-
+#### WireGuard Keys
 ```bash
-base64 -w 0 oke_ssh_key.pub  > oke_ssh_key_b64.txt
-base64 -w 0 vpn_ssh_key.pub  > tf_vpn_ssh_key_b64.txt
-base64 -w 0 vpn_ssh_key      > tf_vpn_private_key_b64.txt
+wg genkey | tee wg_private.key    | wg pubkey > wg_public.key
+wg genkey | tee client_private.key | wg pubkey > client_public.key
+base64 -w 0 wg_private.key       > wg_priv_b64.txt
+base64 -w 0 wg_public.key        > wg_pub_b64.txt
+base64 -w 0 client_private.key   > client_priv_b64.txt
+base64 -w 0 client_public.key    > client_pub_b64.txt
 ```
 
-PowerShell equivalent:
+> PowerShell users can replace `base64 -w 0` with:
+> ```powershell
+> Get-Content .\<file> -Encoding byte | [Convert]::ToBase64String($_) | Out-File <out>.txt -NoNewline
+> ```
 
-```powershell
-# .pub files
-Get-Content .\oke_ssh_key.pub -Encoding byte | [Convert]::ToBase64String(\$\_) | Out-File oke_ssh_key_b64.txt -NoNewline
-# private
-Get-Content .\vpn_ssh_key -Encoding byte | [Convert]::ToBase64String(\$\_) | Out-File tf_vpn_private_key_b64.txt -NoNewline
-```
+### 3) Cloudflare
+- **CLOUDFLARE_API_TOKEN**: scoped to DNS & certificate issuance  
+- **CLOUDFLARE_ZONE_ID**: your domain’s zone ID
 
-### WireGuard Keys
-
-```bash
-wg genkey  | tee wg_private.key | wg pubkey > wg_public.key
-wg genkey  | tee client_private.key | wg pubkey > client_public.key
-```
-
-Encode:
-
-```bash
-base64 -w 0 wg_private.key     > vpn_wireguard_priv_key_b64.txt
-base64 -w 0 wg_public.key      > vpn_wireguard_pub_key_b64.txt
-base64 -w 0 client_private.key > vpn_client_private_key_b64.txt
-base64 -w 0 client_public.key  > vpn_client_public_key_b64.txt
-```
-
-PowerShell:
-
-```powershell
-Get-Content .\wg_private.key -Encoding byte | [Convert]::ToBase64String(\$\_) | Out-File vpn_wireguard_priv_key_b64.txt -NoNewline
-```
-
----
-
-## Creating GitHub Secrets
-
-In your GitHub repo, go to **Settings → Secrets and variables → Actions → New repository secret**. Add the following secrets using the Base64-encoded files or values:
-
-| Secret Name                  | Description                                               |
-| ---------------------------- | --------------------------------------------------------- |
-| `TENANCY_OCID`               | OCI Tenancy OCID                                          |
-| `USER_OCID`                  | OCI User OCID                                             |
-| `FINGERPRINT`                | OCI API Key fingerprint (from the public key)             |
-| `REGION`                     | OCI region (e.g., `us-ashburn-1`)                         |
-| `AVAILABILITY_DOMAIN`        | OCI Availability Domain (e.g., `Uocm:PHX-AD-1`)           |
-| `COMPARTMENT_OCID`           | OCI Compartment OCID                                      |
-| `VCN_CIDR_BLOCK`             | VCN CIDR (e.g., `10.0.0.0/16`)                            |
-| `OKE_K8S_VERSION`            | Kubernetes version for OKE (e.g., `v1.26.x`)              |
-| `OKE_NODE_SHAPE`             | Compute shape for OKE nodes (e.g., `VM.Standard.E3.Flex`) |
-| `OKE_IMAGE_OCID`             | OCID of the OKE worker image                              |
-| `VPN_IMAGE_OCID`             | OCID of the VPN instance image                            |
-| `VPN_INSTANCE_SHAPE`         | Compute shape for VPN (e.g., `VM.Standard.E2.1`)          |
-| `BUDGET_ALERT_EMAIL`         | Email to receive budget alerts                            |
-| `OCI_TF_BUCKET`              | Object Storage bucket for Terraform state                 |
-| `OCI_NAMESPACE`              | Object Storage namespace                                  |
-| **Base64 Secrets:**          |                                                           |
-| `TF_PRIVATE_KEY_B64`         | Base64 of `oci_api_key.pem`                               |
-| `TF_OKE_SSH_KEY_B64`         | Base64 of `oke_ssh_key.pub`                               |
-| `TF_VPN_SSH_KEY_B64`         | Base64 of `vpn_ssh_key.pub`                               |
-| `TF_VPN_PRIVATE_KEY_B64`     | Base64 of `vpn_ssh_key`                                   |
-| `POSTGRES_ADMIN_PASSWORD`    | Postgres admin password                                   |
-| `POSTGRES_USER_PASSWORD`     | Postgres user password                                    |
-| `PGADMIN_EMAIL`              | Email for pgAdmin login                                   |
-| `CLOUDFLARE_API_TOKEN`       | Cloudflare API token for DNS and Cert-manager             |
-| `CLOUDFLARE_ZONE_ID`         | Cloudflare Zone ID                                        |
-| `DOMAIN`                     | Your public domain (e.g., `example.com`)                  |
-| **WireGuard Base64 Keys:**   |                                                           |
-| `VPN_WIREGUARD_PRIV_KEY_B64` | Base64 of `wg_private.key`                                |
-| `VPN_WIREGUARD_PUB_KEY_B64`  | Base64 of `wg_public.key`                                 |
-| `VPN_CLIENT_PRIVATE_KEY_B64` | Base64 of `client_private.key`                            |
-| `VPN_CLIENT_PUBLIC_KEY_B64`  | Base64 of `client_public.key`                             |
+### 4) Other Secrets
+- **DOMAIN**: your public domain (e.g., `example.com`)  
+- **ADMIN_EMAIL**: for Let’s Encrypt & notifications  
 
 ---
 
@@ -150,48 +128,55 @@ In your GitHub repo, go to **Settings → Secrets and variables → Actions → 
 
 ### Terraform Apply Job
 
-1. **Set up Terraform**
-2. **Decode** base64 secrets into key files
-3. **Generate** `terraform.tfvars` with decoded values
-4. **Render** backend\_override from template
-5. **Init**, **Validate**, **Plan**, **Apply** infrastructure
-6. **Extract** `kubeconfig` and artifact the file
-7. **Capture** Load Balancer Subnet (as Base64) and VPN Public IP
+1. Checkout & set up Terraform
+2. Decode base64 secrets into key files
+3. Generate `terraform.tfvars`
+4. Render backend override
+5. `terraform init/validate/plan/apply`
+6. Extract `kubeconfig`; upload as artifact
+7. Capture Load Balancer Subnet & VPN Public IP (Base64)
 
 ### Helm Install Charts Job
 
-1. **Checkout** and **download** `kubeconfig`
-2. **Configure** `kubectl` and OCI CLI
-3. **Add** Helm repos (Jetstack, Nginx Ingress, Bitnami, Runix, community)
-4. **Install**:
-
-   * cert-manager
-   * ingress-nginx with OCI LB annotations
-   * PostgreSQL
-   * pgAdmin
-   * n8n (queue mode)
-5. **Wait** for LoadBalancer IP, **artifact** result
+1. Checkout & download `kubeconfig`
+2. Configure `kubectl` & OCI CLI
+3. Add Helm repos (Jetstack, Nginx Ingress, Bitnami, Runix)
+4. Install:
+   - cert-manager  
+   - ingress-nginx (OCI LB annotations)  
+   - PostgreSQL & pgAdmin  
+   - n8n (queue mode)  
+5. Wait for LoadBalancer IP; upload as artifact
 
 ### Post-Helm VPN Provision Job
 
-1. **Decode** WireGuard & VPN SSH keys
-2. **Terraform Init** & **Test SSH**
-3. **Apply** `null_resource.vpn_provision` (runs setup script on VPN)
-4. **Create** Cloudflare DNS A record for `n8n-webhook` using CF API
-5. **Fetch** WireGuard client config
-6. **Artifact** `wg0-client.conf`
+1. Decode WireGuard & VPN SSH keys
+2. Terraform init & test SSH
+3. `null_resource.vpn_provision` (runs setup script)
+4. Create Cloudflare DNS A record for `n8n-webhook`
+5. Fetch `wg0-client.conf`; upload as artifact
 
 ---
 
 ## Triggering the Workflow
 
-In GitHub, go to **Actions → OCI Infra Pipeline → Run workflow**. You can customize branch or inputs if configured.
+In GitHub, go to **Actions → OCI Infra Pipeline → Run workflow**. Customize branch or inputs if needed.
 
 ---
 
 ## Next Steps
 
-* Review Terraform modules under `./terraform`
-* Customize Helm chart values under `./helm`
-* Enhance monitoring, RBAC, and backups
-* Contribute improvements via pull requests!
+1. **Autoscaling Helm Chart**
+   - Switch n8n Helm config from fixed replica counts to **HorizontalPodAutoscaler** for `worker` & `webhook` deployments.
+2. **Monitoring & Alerting**
+   - Deploy **Prometheus** & **Grafana** via Helm.  
+   - Scrape n8n metrics (queue length, workflow duration), node CPU/RAM, VPN throughput.  
+   - Configure dashboards and alerts (e.g., high queue backlog, node pressure).
+3. **RBAC & Backups**
+   - Define granular Kubernetes roles for CI/CD, monitoring, ops.  
+   - Schedule database backups to OCI Object Storage (e.g., Velero or `pg_dump`).
+4. **Contributions**
+   - Submit PRs to improve modules, charts, or docs.
+
+*Feel free to iterate on Terraform modules under `./terraform` and Helm values in `./helm`.*
+
