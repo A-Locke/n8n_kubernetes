@@ -126,7 +126,8 @@ jobs:
         with:
             name: kubeconfig
             path: ./terraform/kubeconfig.yaml
-                   
+            
+          
       - name: Capture LB subnet OCID
         id: subnet
         run: |
@@ -163,12 +164,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
             name: kubeconfig
-            path: ./helm
 
       - name: Set up Kubernetes config
         run: |
           mkdir -p ~/.kube
-          cp kubeconfig.yaml ~/.kube/config
+          cp ../kubeconfig.yaml ~/.kube/config
 
       - name: Install OCI CLI
         run: |
@@ -507,7 +507,8 @@ jobs:
       with:
           name: wg0-client
           path: ./terraform/wg0-client.conf
-                    
+          
+          
     - name: Cleanup sensitive files
       if: always()
-      run: rm -f wg.key client.key vpn_key.pem oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub terraform.tfvars
+      run: rm -f wg.key client.key vpn_key.pem oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub terraform.tfvarsF
