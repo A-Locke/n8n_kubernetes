@@ -19,7 +19,7 @@ ingress-nginx:
       
       oci.oraclecloud.com/load-balancer-type: "lb"
       service.beta.kubernetes.io/oci-load-balancer-subnet1: ""
-      service.beta.kubernetes.io/oci-load-balancer-shape: "flexible"
-      service.beta.kubernetes.io/oci-load-balancer-shape-flex-min: "10"
-      service.beta.kubernetes.io/oci-load-balancer-shape-flex-max: "10"
+      service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps"
+      # service.beta.kubernetes.io/oci-load-balancer-shape-flex-min: "10"
+      # service.beta.kubernetes.io/oci-load-balancer-shape-flex-max: "10"
       oci.oraclecloud.com/initial-freeform-tags-override: '{"AlwaysFree": "true"}'
