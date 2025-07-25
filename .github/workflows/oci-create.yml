@@ -145,7 +145,7 @@ jobs:
       - name: Capture Second LB subnet OCID
         id: subnet2
         run: |
-            LB_SUBNET2=$(terraform output -raw svc_lb_subnet2_ocid)
+            LB_SUBNET2=$(terraform output -raw svc_lb_subnet_b_ocid)
             echo "Captured second subnet: $LB_SUBNET2"
             LB_SUBNET2_B64=$(echo -n "$LB_SUBNET2" | base64 -w 0)
             echo "lb_subnet2=$LB_SUBNET2_B64" >> "$GITHUB_OUTPUT"
