@@ -55,7 +55,7 @@ resource "oci_core_subnet" "svc_lb_subnet" {
   dns_label                  = "lbsub4a173332b"
   route_table_id             = oci_core_route_table.public_rt.id
   security_list_ids 		 = [oci_core_security_list.oke_svc_lb_sec_list.id]
-  
+}
 # Second public subnet for the OCI Load Balancer (needed for HA / Always Free)
 resource "oci_core_subnet" "svc_lb_subnet_b" {
   compartment_id             = var.compartment_ocid
@@ -67,7 +67,7 @@ resource "oci_core_subnet" "svc_lb_subnet_b" {
   route_table_id             = oci_core_route_table.public_rt.id  # same public route table
   security_list_ids          = [oci_core_security_list.oke_svc_lb_sec_list.id]  # reuse same SL as the first LB subnet
 }
-}
+
 resource "oci_core_subnet" "k8s_api_subnet" {
   compartment_id             = var.compartment_ocid
   vcn_id                     = oci_core_vcn.main.id
