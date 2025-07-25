@@ -268,8 +268,6 @@ jobs:
             --create-namespace \
             --values ./ingress-nginx-config/values.yaml \
             --set global.domain="${{ secrets.DOMAIN }}" \
-            --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet1'="$DECODED_SUBNET1" \
-            --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet2'="$DECODED_SUBNET2" \
             --set ingress-nginx.controller.service.annotations."service\.beta\.kubernetes\.io/oci-load-balancer-health-check-port"="0" \
             --set ingress-nginx.controller.service.annotations."service\.beta\.kubernetes\.io/oci-load-balancer-health-check-protocol"="HTTP"
                         
