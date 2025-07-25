@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       lb_subnet: ${{ steps.subnet.outputs.lb_subnet }}
+      lb_subnet2: ${{ steps.subnet2.outputs.lb_subnet2 }}
       vpn_ip: ${{ steps.vpn-ip.outputs.vpn_ip }}
     defaults:
       run:
@@ -141,6 +142,14 @@ jobs:
             echo "Captured subnet: $LB_SUBNET"
             LB_SUBNET_B64=$(echo -n "$LB_SUBNET" | base64 -w 0)
             echo "lb_subnet=$LB_SUBNET_B64" >> "$GITHUB_OUTPUT"
+      - name: Capture Second LB subnet OCID
+        id: subnet2
+        run: |
+            LB_SUBNET2=$(terraform output -raw svc_lb_subnet2_ocid)
+            echo "Captured second subnet: $LB_SUBNET2"
+            LB_SUBNET2_B64=$(echo -n "$LB_SUBNET2" | base64 -w 0)
+            echo "lb_subnet2=$LB_SUBNET2_B64" >> "$GITHUB_OUTPUT"
+
       - name: Output VPN Public IP
         id: vpn-ip
         run: |
@@ -242,21 +251,25 @@ jobs:
       - name: Debug - Check passed variables
         run: |
           echo "Domain: ${{ secrets.DOMAIN }}"
-          echo "LB Subnet (base64) from terraform: ${{ needs.terraform.outputs.lb_subnet }}"
-          DECODED_SUBNET=$(echo "${{ needs.terraform.outputs.lb_subnet }}" | base64 -d)
-          echo "Decoded subnet: $DECODED_SUBNET"
-          echo "Length of decoded subnet: ${#DECODED_SUBNET}"
-          
+          echo "LB Subnet 1 (base64): ${{ needs.terraform.outputs.lb_subnet }}"
+          echo "LB Subnet 2 (base64): ${{ needs.terraform.outputs.lb_subnet2 }}"
+          DECODED_SUBNET1=$(echo "${{ needs.terraform.outputs.lb_subnet }}" | base64 -d)
+          DECODED_SUBNET2=$(echo "${{ needs.terraform.outputs.lb_subnet2 }}" | base64 -d)
+          echo "Decoded subnet1: $DECODED_SUBNET1"
+          echo "Decoded subnet2: $DECODED_SUBNET2"
+
       - name: Install ingress-nginx-config
         run: |
-          DECODED_SUBNET=$(echo "${{ needs.terraform.outputs.lb_subnet }}" | base64 -d)
+          DECODED_SUBNET1=$(echo "${{ needs.terraform.outputs.lb_subnet }}" | base64 -d)
+          DECODED_SUBNET2=$(echo "${{ needs.terraform.outputs.lb_subnet2 }}" | base64 -d)
           helm dependency update ./ingress-nginx-config
           helm upgrade --install ingress-nginx-config ./ingress-nginx-config \
             --namespace ingress-nginx \
             --create-namespace \
             --values ./ingress-nginx-config/values.yaml \
             --set global.domain="${{ secrets.DOMAIN }}" \
-            --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet1'="$DECODED_SUBNET" \
+            --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet1'="$DECODED_SUBNET1" \
+            --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet2'="$DECODED_SUBNET2" \
             --set ingress-nginx.controller.service.annotations."service\.beta\.kubernetes\.io/oci-load-balancer-health-check-port"="0" \
             --set ingress-nginx.controller.service.annotations."service\.beta\.kubernetes\.io/oci-load-balancer-health-check-protocol"="HTTP"
                         
