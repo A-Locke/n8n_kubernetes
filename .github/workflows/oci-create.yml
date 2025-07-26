@@ -127,13 +127,6 @@ jobs:
             name: kubeconfig
             path: ./terraform/kubeconfig.yaml
             
-      - name: Debug - Check terraform outputs
-        run: |
-          echo "Checking terraform outputs..."
-          terraform output svc_lb_subnet_ocid
-          echo "Raw output:"
-          terraform output -raw svc_lb_subnet_ocid
-          
       - name: Capture LB subnet OCID
         id: subnet
         run: |
@@ -238,15 +231,7 @@ jobs:
             --set clusterIssuers.cloudflare.email="${{ secrets.PGADMIN_EMAIL }}" \
             --set clusterIssuers.http01.email="${{ secrets.PGADMIN_EMAIL }}" \
             --set global.domain="${{ secrets.DOMAIN }}"
-                      
-      - name: Debug - Check passed variables
-        run: |
-          echo "Domain: ${{ secrets.DOMAIN }}"
-          echo "LB Subnet (base64) from terraform: ${{ needs.terraform.outputs.lb_subnet }}"
-          DECODED_SUBNET=$(echo "${{ needs.terraform.outputs.lb_subnet }}" | base64 -d)
-          echo "Decoded subnet: $DECODED_SUBNET"
-          echo "Length of decoded subnet: ${#DECODED_SUBNET}"
-          
+                              
       - name: Install ingress-nginx-config
         run: |
           DECODED_SUBNET=$(echo "${{ needs.terraform.outputs.lb_subnet }}" | base64 -d)
@@ -520,39 +505,7 @@ jobs:
       with:
           name: wg0-client
           path: ./terraform/wg0-client.conf
-          
-    - name: Debug on failure
-      if: failure()
-      run: |
-        echo "Deployment failed. Gathering debug information..."
-        
-        # Show current working directory and files
-        echo "Current directory: $(pwd)"
-        echo "Files in current directory:"
-        ls -la
-        
-        # Try to get VPN instance logs if possible
-        VPN_IP=$(terraform output -raw vpn_instance_public_ip 2>/dev/null)
-        if [ -n "$VPN_IP" ] && [ "$VPN_IP" != "null" ] && [ "$VPN_IP" != "unknown" ]; then
-          echo "Attempting to fetch logs from VPN instance at $VPN_IP..."
-          timeout 30 ssh -i vpn_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 ubuntu@$VPN_IP \
-            "if [ -f /tmp/vpn-provision.log ]; then echo '=== VPN Provision Log ==='; cat /tmp/vpn-provision.log; else echo 'No provision log found'; fi" 2>/dev/null || echo "Could not fetch logs from VPN instance"
-        else
-          echo "VPN IP not available: '$VPN_IP'"
-        fi
-        
-        # Show Terraform state
-        echo "=== Terraform State ==="
-        terraform show 2>/dev/null || echo "Could not show terraform state"
-        
-        # Show last few terraform operations
-        echo "=== Recent Terraform Output ==="
-        if [ -f .terraform/terraform.tfstate ]; then
-          echo "Local tfstate file found"
-        else
-          echo "No local tfstate file found"
-        fi
-          
+                    
     - name: Cleanup sensitive files
       if: always()
       run: rm -f wg.key client.key vpn_key.pem oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub terraform.tfvars
