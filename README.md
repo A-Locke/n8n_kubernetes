@@ -71,29 +71,15 @@ Always choose shapes marked **"Always Free Eligible."**
 
 ## CI/CD Infrastructure Cost Comparison
 
-  -----------------------------------------------------------------------
-  Component            Oracle (Free Tier)   AWS (EKS)     Azure (AKS)
-  -------------------- -------------------- ------------- ---------------
-  Control Plane        ✅ Free (OKE)        ❌ \$72/mo    ✅ Free basic /
-                                                          ❌ \$72 with
-                                                          SLA
-
-  Compute Nodes        ✅ 2× A1.Flex        ❌ \$98/mo    ❌ \$140/mo
-
-  VM for VPN/DNS       ✅ Free              ❌ \$7/mo     ❌ \$6/mo
-
-  Storage (200GB)      ✅ Included          ❌ \$45/mo    ❌ \$30/mo
-
-  Load Balancer        ✅ Free (10 Mbps)    ❌ \$20--25   ✅ Free basic /
-                                                          ❌ \$18 std
-
-  Outbound 100GB       ✅ Free (10TB)       ❌ \$9/mo     ❌ \$9/mo
-
-  **Total**            🟢 \$0               🔴 \$250+     🟡 \$195+ / 🔴
-                                                          \$267+
-  -----------------------------------------------------------------------
-
-------------------------------------------------------------------------
+| Component                     | Oracle Cloud (Free Tier)                      | AWS (EKS)            | Azure (AKS)                               |
+|------------------------------|-----------------------------------------------|----------------------|-------------------------------------------|
+| Kubernetes Control Plane     | ✅ Free (OKE)                                  | ❌ $72/mo            | ✅ Free (basic)<br>❌ $72/mo (SLA)         |
+| Compute Nodes                | ✅ 2× A1.Flex                                  | ❌ $98/mo            | ❌ $140/mo                                |
+| VM for VPN and DNS           | ✅ Free                                        | ❌ $7/mo             | ❌ $6/mo                                  |
+| Storage (200 GB)             | ✅ Included                                    | ❌ ~$45/mo           | ❌ ~$30/mo                                |
+| Load Balancer                | ✅ 1 basic LB included (10 Mbps)               | ❌ $20–25/mo         | ✅ Basic Free<br>❌ Standard ~$18/mo       |
+| Outbound Traffic (100 GB)    | ✅ Free (up to 10 TB/mo)                       | ❌ $9/mo             | ❌ $8–9/mo                                |
+| **Total Monthly Cost**       | 🟢 **$0**                                      | 🔴 **$250+**         | 🟡 **$195+** / 🔴 **$267+**               |
 
 ## Infrastructure Layout
 
