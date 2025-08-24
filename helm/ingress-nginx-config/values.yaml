@@ -1,0 +1,25 @@
+# Default values for ingress-nginx-config
+# This is a YAML-formatted file.
+
+# Whether to install ingress-nginx as a dependency
+ingressNginx:
+  install: true  # Set to true if you want to install ingress-nginx via this chart
+
+# Ingress-nginx controller configuration
+# These values are passed directly to the ingress-nginx chart
+ingress-nginx:
+ controller:
+  ingressClass: nginx
+  ingressClassResource:
+    name: nginx
+  replicaCount: 1
+  service:
+    type: LoadBalancer
+    annotations:
+      
+      oci.oraclecloud.com/load-balancer-type: "lb"
+      service.beta.kubernetes.io/oci-load-balancer-subnet1: ""
+      service.beta.kubernetes.io/oci-load-balancer-shape: "10Mbps-Micro"
+      # service.beta.kubernetes.io/oci-load-balancer-shape-flex-min: "10"
+      # service.beta.kubernetes.io/oci-load-balancer-shape-flex-max: "10"
+      oci.oraclecloud.com/initial-freeform-tags-override: '{"AlwaysFree": "true"}'

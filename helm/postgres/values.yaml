@@ -1,0 +1,104 @@
+# Default values for postgres
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  postgresql:
+    auth:
+      postgresPassword: ""  # Set via --set or external secret
+      username: "n8n"
+      password: ""  # Set via --set or external secret
+      database: "n8n"
+
+# PostgreSQL configuration using bitnami/postgresql chart
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: ""  # Set via --set or external secret
+    username: "n8n"
+    password: ""  # Set via --set or external secret
+    database: "n8n"
+    existingSecret: ""  # Use existing secret if available
+    secretKeys:
+      adminPasswordKey: "postgres-password"
+      userPasswordKey: "password"
+
+  # Architecture
+  architecture: standalone
+
+  # Primary configuration
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: ""
+
+    resources:
+      limits:
+        cpu:    150m
+        memory: 512Mi
+      requests:
+        cpu: 60m
+        memory: 256Mi
+
+    # Security context
+    podSecurityContext:
+      enabled: true
+      fsGroup: 1001
+
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+      runAsNonRoot: true
+
+    # Service configuration
+    service:
+      type: ClusterIP
+      ports:
+        postgresql: 5432
+
+    # PostgreSQL configuration
+    initdb:
+      scripts:
+        init.sql: |
+          -- Create n8n database if it doesn't exist
+          SELECT 'CREATE DATABASE n8n' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'n8n')\gexec
+
+          -- Grant privileges to n8n user
+          GRANT ALL PRIVILEGES ON DATABASE n8n TO n8n;
+
+    # Backup configuration (optional)
+    backup:
+      enabled: false
+      cronjob:
+        schedule: "0 2 * * *"
+        storage:
+          size: 8Gi
+
+  # Metrics (optional)
+  metrics:
+    enabled: false
+    serviceMonitor:
+      enabled: false
+
+  # Network policy (optional)
+  networkPolicy:
+    enabled: false
+
+# Name overrides
+nameOverride: ""
+fullnameOverride: ""
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod annotations
+podAnnotations: {}
+
+# Node selector, tolerations, affinity
+nodeSelector: {}
+tolerations: []
+affinity: {}

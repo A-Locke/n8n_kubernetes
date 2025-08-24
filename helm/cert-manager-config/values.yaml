@@ -1,0 +1,66 @@
+# Default values for cert-manager-config
+# This is a YAML-formatted file.
+
+# ClusterIssuer configurations
+clusterIssuers:
+  # Cloudflare DNS-01 challenge issuer
+  cloudflare:
+    enabled: true
+    name: "letsencrypt-cloudflare"
+    email: ""  # Required: Set your email address
+    server: "https://acme-v02.api.letsencrypt.org/directory"
+    privateKeySecretRef: "letsencrypt-cloudflare-key"
+    # Use either apiToken (recommended) or apiKey (legacy)
+    apiToken: true  # Set to false if using apiKey instead
+    apiKey: false   # Set to true if using legacy API key
+    secretName: "cloudflare-api-token-secret"
+    secretKey: "api-token"
+  
+  # HTTP-01 challenge issuers
+  http01:
+    enabled: true
+    email: ""  # Required: Set your email address
+    ingressClass: "nginx"
+    
+    # Production issuer
+    prod:
+      name: "letsencrypt-prod"
+      server: "https://acme-v02.api.letsencrypt.org/directory"
+      privateKeySecretRef: "letsencrypt-prod-key"
+    
+    # Staging issuer (for testing)
+    staging:
+      enabled: true
+      name: "letsencrypt-staging"
+      server: "https://acme-staging-v02.api.letsencrypt.org/directory"
+      privateKeySecretRef: "letsencrypt-staging-key"
+
+# Cloudflare API configuration
+cloudflare:
+  enabled: true
+  # API Token (recommended) - requires Cloudflare API Token with Zone:Read, DNS:Edit permissions
+  apiToken: ""  # Set via --set or external secret
+  # API Key (legacy) - requires Global API Key
+  apiKey: ""    # Set via --set or external secret
+  
+  # Secret configuration
+  secretName: "cloudflare-api-token-secret"
+  existingSecret: ""  # Use existing secret if available
+  
+# Name overrides
+nameOverride: ""
+fullnameOverride: ""
+
+# Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod annotations
+podAnnotations: {}
+
+# Node selector, tolerations, affinity
+nodeSelector: {}
+tolerations: []
+affinity: {}

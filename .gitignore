@@ -1,0 +1,39 @@
+# Local Terraform directories and state files
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+crash.log
+*.log
+
+# All files ending in _key (no extension)
+*_key
+
+# All keys encoded in base64
+*.b64
+
+# All key files with or without extension
+*.pem
+*.key
+
+# Public keys (optional to exclude)
+*.pub
+
+# Specific key files from your screenshot
+oke_node_key
+vpn_instance_key
+oci_api_key.pem
+oke_node_key.pub
+vpn_instance_key.pub
+
+# Ignore plaintext data
+gathered.TXT
+
+# Lock files
+.terraform.lock.hcl
+
+# Ignore editor/OS/system-specific files
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

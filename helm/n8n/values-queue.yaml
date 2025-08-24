@@ -1,0 +1,160 @@
+# ────────────────────────────────────────────────────────────────
+# Image
+# ────────────────────────────────────────────────────────────────
+image:
+  repository: n8nio/n8n
+  tag: "1.43.1"
+  pullPolicy: IfNotPresent
+
+# ────────────────────────────────────────────────────────────────
+# Ingress (admin UI + webhooks on separate hosts, one cert)
+# ────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+  hosts:
+    - host: ""
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: ""
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: n8n-tls
+      hosts:
+        - ""
+        - ""
+
+# ────────────────────────────────────────────────────────────────
+# Database – external Postgres
+# ────────────────────────────────────────────────────────────────
+db:
+  type: postgresdb
+
+externalPostgresql:
+  host: postgres-postgresql.data.svc.cluster.local
+  port: 5432
+  database: n8n
+  username: n8n
+  password: ""
+
+# ────────────────────────────────────────────────────────────────
+# Redis (in-cluster Bitnami chart)
+# ────────────────────────────────────────────────────────────────
+redis:
+  enabled: true
+  architecture: standalone
+  master:
+    persistence:
+      enabled: false
+
+# ────────────────────────────────────────────────────────────────
+# Main (UI / REST API / scheduler)
+# ────────────────────────────────────────────────────────────────
+main:
+  resources:
+    requests:
+      cpu:    200m
+      memory: 2Gi
+    limits:
+      cpu:    250m
+      memory: 4Gi
+
+  # ─── Health probes ─────────────────────────────────
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: "http"          # use the container port name, not the number
+      scheme: HTTP
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
+    periodSeconds:       10
+    failureThreshold:     6
+
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: "http"
+      scheme: HTTP
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
+    periodSeconds:       10
+    failureThreshold:     6
+
+# ────────────────────────────────────────────────────────────────
+# Worker (background queue)
+# ────────────────────────────────────────────────────────────────
+worker:
+  mode: queue
+  count: 5
+  
+  resources:
+    requests:
+      cpu: 150m
+      memory: 512Mi
+    limits:
+      cpu: 250m
+      memory: 1Gi
+
+  # ─── Health probes ─────────────────────────────────
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: "http"
+      scheme: HTTP
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
+    periodSeconds:       10
+    failureThreshold:     6
+
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: "http"
+      scheme: HTTP
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
+    periodSeconds:       10
+    failureThreshold:     6
+
+# ────────────────────────────────────────────────────────────────
+# Webhook listener (public webhooks)
+# ────────────────────────────────────────────────────────────────
+webhook:
+  mode: queue
+  url: ""
+  count: 5
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi  
+  # ─── Disable MCP webhook component ─────────────────
+  mcp:
+    enabled: false
+  # ─── Health probes ─────────────────────────────────
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: "http"
+      scheme: HTTP
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
+    periodSeconds:       10
+    failureThreshold:     6
+
+  readinessProbe:
+    httpGet:
+      path: /healthz
+      port: "http"
+      scheme: HTTP
+    initialDelaySeconds: 60
+    timeoutSeconds:       6
+    periodSeconds:       10
+    failureThreshold:     6

@@ -1,0 +1,511 @@
+name: OCI Create Pipeline
+
+on:
+  workflow_dispatch:
+
+jobs:
+   terraform:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    outputs:
+      lb_subnet: ${{ steps.subnet.outputs.lb_subnet }}
+      vpn_ip: ${{ steps.vpn-ip.outputs.vpn_ip }}
+    defaults:
+      run:
+        working-directory: ./terraform
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.2  # Consider upgrading to >=1.5.x
+
+      - name: Create terraform.tfvars with decoded secrets
+        run: |
+          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}"    | base64 -d > oci_api_key.pem
+          echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}"     | base64 -d > oke_ssh_key.pub
+          echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"     | base64 -d > vpn_ssh_key.pub
+          echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
+
+          tee terraform.tfvars > /dev/null <<EOF
+          tenancy_ocid         = "${{ secrets.TENANCY_OCID }}"
+          user_ocid            = "${{ secrets.USER_OCID }}"
+          region               = "${{ secrets.REGION }}"
+          availability_domain  = "${{ secrets.AVAILABILITY_DOMAIN }}"
+          fingerprint          = "${{ secrets.FINGERPRINT }}"
+
+          private_key = <<EOKEY
+          $(cat oci_api_key.pem)
+          EOKEY
+
+          compartment_ocid     = "${{ secrets.COMPARTMENT_OCID }}"
+          vcn_cidr_block       = "${{ secrets.VCN_CIDR_BLOCK }}"
+          oke_k8s_version      = "${{ secrets.OKE_K8S_VERSION }}"
+
+          oke_ssh_key = <<EOKEY
+          $(cat oke_ssh_key.pub)
+          EOKEY
+
+          vpn_ssh_key = <<EOKEY
+          $(cat vpn_ssh_key.pub)
+          EOKEY
+
+          vpn_private_key = <<EOKEY
+          $(cat vpn_key.pem)
+          EOKEY
+
+          vpn_instance_shape   = "${{ secrets.VPN_INSTANCE_SHAPE }}"
+          vpn_image_ocid       = "${{ secrets.VPN_IMAGE_OCID }}"
+          oke_node_shape       = "${{ secrets.OKE_NODE_SHAPE }}"
+          oke_image_ocid       = "${{ secrets.OKE_IMAGE_OCID }}"
+          budget_alert_email   = "${{ secrets.BUDGET_ALERT_EMAIL }}"
+          EOF
+          
+      - name: Render backend_override.tf from template
+        run: |
+            sed \
+              -e "s|__BUCKET__|${{ secrets.OCI_TF_BUCKET }}|" \
+              -e "s|__NAMESPACE__|${{ secrets.OCI_NAMESPACE }}|" \
+              -e "s|__REGION__|${{ secrets.REGION }}|" \
+              -e "s|__COMPARTMENT_OCID__|${{ secrets.COMPARTMENT_OCID }}|" \
+              backend.tpl > backend_override.tf
+              
+      - name: Terraform Init
+        env:
+          TF_INPUT: false
+          TF_VAR_tenancy_ocid: ${{ secrets.TENANCY_OCID }}
+          TF_VAR_user_ocid: ${{ secrets.USER_OCID }}
+          TF_VAR_fingerprint: ${{ secrets.FINGERPRINT }}
+          TF_VAR_region: ${{ secrets.REGION }}
+          TF_VAR_private_key_path: "./oci_api_key.pem"
+        run: |
+          # Ensure backend override exists
+          if [ ! -f backend_override.tf ]; then
+            echo "Error: backend_override.tf not found"
+            exit 1
+          fi
+          
+          # Initialize with backend configuration
+          terraform init \
+            -backend-config="tenancy_ocid=${{ secrets.TENANCY_OCID }}" \
+            -backend-config="user_ocid=${{ secrets.USER_OCID }}" \
+            -backend-config="fingerprint=${{ secrets.FINGERPRINT }}" \
+            -backend-config="private_key_path=./oci_api_key.pem"
+        
+      - name: Terraform Validate
+        env:
+          TF_INPUT: false
+        run: terraform validate
+
+      - name: Terraform Plan
+        env:
+          TF_INPUT: false
+        run: terraform plan -no-color -var-file="terraform.tfvars"
+
+      - name: Terraform Apply
+        env:
+          TF_INPUT: false
+        run: terraform apply -auto-approve -var-file="terraform.tfvars"
+        
+      - name: Capture kubeconfig from Terraform
+        id: export-kubeconfig
+        run: |
+          echo "Checking if kubeconfig output exists..."
+          terraform output kubeconfig
+          echo "Exporting kubeconfig to file..."
+          terraform output -raw kubeconfig > kubeconfig.yaml
+          echo "Verifying file was created..."
+          ls -la kubeconfig.yaml
+          echo "File size: $(wc -c < kubeconfig.yaml) bytes"
+
+      - name: Upload kubeconfig as artifact
+        uses: actions/upload-artifact@v4
+        with:
+            name: kubeconfig
+            path: ./terraform/kubeconfig.yaml
+            
+      - name: Capture LB subnet OCID
+        id: subnet
+        run: |
+            LB_SUBNET=$(terraform output -raw svc_lb_subnet_ocid)
+            echo "Captured subnet: $LB_SUBNET"
+            LB_SUBNET_B64=$(echo -n "$LB_SUBNET" | base64 -w 0)
+            echo "lb_subnet=$LB_SUBNET_B64" >> "$GITHUB_OUTPUT"
+      - name: Output VPN Public IP
+        id: vpn-ip
+        run: |
+            echo "vpn_ip=$(terraform output -raw vpn_instance_public_ip)" >> "$GITHUB_OUTPUT"
+    
+      - name: Cleanup decoded secrets
+        run: rm -f oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub vpn_key.pem terraform.tfvars
+      - name: Cleanup backend override file
+        run: rm -f backend_override.tf
+        
+        
+   helm:
+    name: Helm Install Charts
+    needs: terraform
+    runs-on: ubuntu-latest
+    outputs:
+      lb_ip: ${{ steps.get-lb-ip.outputs.lb_ip }}
+    defaults:
+      run:
+        working-directory: ./helm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download kubeconfig artifact
+        uses: actions/download-artifact@v4
+        with:
+            name: kubeconfig
+
+      - name: Set up Kubernetes config
+        run: |
+          mkdir -p ~/.kube
+          cp ../kubeconfig.yaml ~/.kube/config
+
+      - name: Install OCI CLI
+        run: |
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+          echo "$HOME/bin" >> $GITHUB_PATH
+          
+      - name: Configure OCI CLI
+        env:
+          OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}" | base64 -d > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.USER_OCID }}
+          fingerprint=${{ secrets.FINGERPRINT }}
+          tenancy=${{ secrets.TENANCY_OCID }}
+          region=${{ secrets.REGION }}
+          key_file=~/.oci/oci_api_key.pem
+          EOF
+          chmod 600 ~/.oci/config
+
+      - name: Add cert-manager repo
+        run: |
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo update
+          
+      - name: Add ingress-nginx repo
+        run: |
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update    
+          
+      - name: Add Bitnami repo for PostgreSQL
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
+          
+      - name: Add runix repo for pgAdmin
+        run: |
+          helm repo add runix https://helm.runix.net
+          helm repo update
+          
+      - name: Install cert-manager
+        run: |
+          helm upgrade --install cert-manager jetstack/cert-manager \
+            --namespace cert-manager \
+            --create-namespace \
+            --version v1.13.0 \
+            --set installCRDs=true \
+            --wait --timeout 5m
+
+      - name: Install cert-manager-config
+        run: |
+          helm upgrade --install cert-manager-config ./cert-manager-config \
+            --namespace cert-manager \
+            --create-namespace \
+            --values ./cert-manager-config/values.yaml \
+            --set cloudflare.enabled=true \
+            --set cloudflare.apiToken="${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            --set clusterIssuers.cloudflare.email="${{ secrets.PGADMIN_EMAIL }}" \
+            --set clusterIssuers.http01.email="${{ secrets.PGADMIN_EMAIL }}" \
+            --set global.domain="${{ secrets.DOMAIN }}"
+                              
+      - name: Install ingress-nginx-config
+        run: |
+          DECODED_SUBNET=$(echo "${{ needs.terraform.outputs.lb_subnet }}" | base64 -d)
+          helm dependency update ./ingress-nginx-config
+          helm upgrade --install ingress-nginx-config ./ingress-nginx-config \
+            --namespace ingress-nginx \
+            --create-namespace \
+            --values ./ingress-nginx-config/values.yaml \
+            --set global.domain="${{ secrets.DOMAIN }}" \
+            --set 'ingress-nginx.controller.service.annotations.service\.beta\.kubernetes\.io/oci-load-balancer-subnet1'="$DECODED_SUBNET" \
+            --set ingress-nginx.controller.service.annotations."service\.beta\.kubernetes\.io/oci-load-balancer-health-check-port"="0" \
+            --set ingress-nginx.controller.service.annotations."service\.beta\.kubernetes\.io/oci-load-balancer-health-check-protocol"="HTTP"
+                        
+      - name: Wait for ingress-nginx LoadBalancer IP
+        id: get-lb-ip
+        run: |
+          echo "Waiting for ingress-nginx LoadBalancer IP..."
+          for i in {1..30}; do
+            IP=$(kubectl get svc ingress-nginx-config-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            if [[ "$IP" != "" ]]; then
+              echo "Found IP: $IP"
+              echo "lb_ip=$IP" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Timed out waiting for LoadBalancer IP" >&2
+          exit 1
+    
+      - name: Save LB IP to file
+        run: echo "${{ steps.get-lb-ip.outputs.lb_ip }}" > lb_ip.txt
+
+      - name: Upload LB IP
+        uses: actions/upload-artifact@v4
+        with:
+          name: lb-ip
+          path: ./helm/lb_ip.txt
+          
+      - name: Install PostgreSQL (bitnami)
+        run: |
+          helm dependency update ./postgres
+          helm upgrade --install postgres ./postgres \
+                --namespace data \
+                --create-namespace \
+                --dependency-update \
+                --values ./postgres/values.yaml \
+                --set global.postgresql.auth.postgresPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
+                --set global.postgresql.auth.password="${{ secrets.POSTGRES_USER_PASSWORD }}" \
+                --set postgresql.auth.postgresPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
+                --set postgresql.auth.password="${{ secrets.POSTGRES_USER_PASSWORD }}"
+                
+      - name: Fetch pgAdmin chart dependencies
+        run: helm dependency build ./pgadmin     
+        
+      - name: Install pgAdmin (runix/pgadmin4)
+        run: |
+          helm upgrade --install pgadmin ./pgadmin \
+            --namespace data \
+            --create-namespace \
+            --values ./pgadmin/values.yaml \
+            --set pgadmin4.env.email="${{ secrets.PGADMIN_EMAIL }}" \
+            --set pgadmin4.env.password="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
+            --set pgadmin4.ingress.hosts[0].host=pgadmin.${{ secrets.DOMAIN }} \
+            --set pgadmin4.ingress.tls[0].hosts[0]=pgadmin.${{ secrets.DOMAIN }}
+
+      - name: Install n8n (community-charts)
+        run: |
+            helm repo add community-charts https://community-charts.github.io/helm-charts
+            helm repo update
+            helm upgrade --install n8n community-charts/n8n \
+                --version 1.13.4 \
+                --namespace workflows \
+                --create-namespace \
+                --values ./n8n/values-queue.yaml \
+                --set externalPostgresql.password="${{ secrets.POSTGRES_USER_PASSWORD }}" \
+                --set ingress.hosts[0].host=n8n.${{ secrets.DOMAIN }} \
+                --set ingress.hosts[1].host=n8n-webhook.${{ secrets.DOMAIN }} \
+                --set webhook.url=https://n8n-webhook.${{ secrets.DOMAIN }} \
+                --set ingress.tls[0].hosts[0]=n8n.${{ secrets.DOMAIN }} \
+                --set ingress.tls[0].hosts[1]=n8n-webhook.${{ secrets.DOMAIN }} \
+                --wait --timeout 10m
+      
+    
+   post_helm:
+    needs: helm
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./terraform
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+        
+    - name: Decode VPN WireGuard Private Key
+      run: |
+          echo "${{ secrets.VPN_WIREGUARD_PRIV_KEY_B64 }}" | base64 -d > wg.key
+          chmod 600 wg.key
+    - name: Decode VPN WireGuard Client Public Key
+      run: |
+            echo "${{ secrets.VPN_CLIENT_PUBLIC_KEY_B64 }}" | base64 -d > client.pub
+            chmod 644 client.pub
+
+    - name: Decode VPN WireGuard Client Private Key
+      run: |
+          echo "${{ secrets.VPN_CLIENT_PRIVATE_KEY_B64 }}" | base64 -d > client.key
+          chmod 600 client.key
+          
+    - name: Decode VPN SSH Private Key
+      run: |
+          echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
+          chmod 600 vpn_key.pem
+
+    - name: Set up Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.12.2
+
+    - name: Create terraform.tfvars with decoded secrets
+      run: |
+        echo "${{ secrets.TF_PRIVATE_KEY_B64 }}"    | base64 -d > oci_api_key.pem
+        echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}"     | base64 -d > oke_ssh_key.pub
+        echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"     | base64 -d > vpn_ssh_key.pub
+        echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
+
+        # Set proper permissions
+        chmod 600 oci_api_key.pem vpn_key.pem
+        chmod 644 oke_ssh_key.pub vpn_ssh_key.pub
+
+        tee terraform.tfvars > /dev/null <<EOF
+        tenancy_ocid         = "${{ secrets.TENANCY_OCID }}"
+        user_ocid            = "${{ secrets.USER_OCID }}"
+        region               = "${{ secrets.REGION }}"
+        availability_domain  = "${{ secrets.AVAILABILITY_DOMAIN }}"
+        fingerprint          = "${{ secrets.FINGERPRINT }}"
+
+        private_key = <<EOKEY
+        $(cat oci_api_key.pem)
+        EOKEY
+
+        compartment_ocid     = "${{ secrets.COMPARTMENT_OCID }}"
+        vcn_cidr_block       = "${{ secrets.VCN_CIDR_BLOCK }}"
+        oke_k8s_version      = "${{ secrets.OKE_K8S_VERSION }}"
+
+        oke_ssh_key = <<EOKEY
+        $(cat oke_ssh_key.pub)
+        EOKEY
+
+        vpn_ssh_key = <<EOKEY
+        $(cat vpn_ssh_key.pub)
+        EOKEY
+
+        vpn_private_key = <<EOKEY
+        $(cat vpn_key.pem)
+        EOKEY
+
+        vpn_instance_shape   = "${{ secrets.VPN_INSTANCE_SHAPE }}"
+        vpn_image_ocid       = "${{ secrets.VPN_IMAGE_OCID }}"
+        oke_node_shape       = "${{ secrets.OKE_NODE_SHAPE }}"
+        oke_image_ocid       = "${{ secrets.OKE_IMAGE_OCID }}"
+        budget_alert_email   = "${{ secrets.BUDGET_ALERT_EMAIL }}"
+        EOF
+        
+    - name: Render backend_override.tf from template
+      run: |
+          sed \
+            -e "s|__BUCKET__|${{ secrets.OCI_TF_BUCKET }}|" \
+            -e "s|__NAMESPACE__|${{ secrets.OCI_NAMESPACE }}|" \
+            -e "s|__REGION__|${{ secrets.REGION }}|" \
+            -e "s|__COMPARTMENT_OCID__|${{ secrets.COMPARTMENT_OCID }}|" \
+            backend.tpl > backend_override.tf
+            
+    - name: Terraform Init
+      env:
+        TF_INPUT: false
+        TF_VAR_tenancy_ocid: ${{ secrets.TENANCY_OCID }}
+        TF_VAR_user_ocid: ${{ secrets.USER_OCID }}
+        TF_VAR_fingerprint: ${{ secrets.FINGERPRINT }}
+        TF_VAR_region: ${{ secrets.REGION }}
+        TF_VAR_private_key_path: "./oci_api_key.pem"
+      run: |
+        # Ensure backend override exists
+        if [ ! -f backend_override.tf ]; then
+          echo "Error: backend_override.tf not found"
+          exit 1
+        fi
+        
+        # Initialize with backend configuration
+        terraform init \
+          -backend-config="tenancy_ocid=${{ secrets.TENANCY_OCID }}" \
+          -backend-config="user_ocid=${{ secrets.USER_OCID }}" \
+          -backend-config="fingerprint=${{ secrets.FINGERPRINT }}" \
+          -backend-config="private_key_path=./oci_api_key.pem"
+
+    # Add a step to test SSH connectivity before applying
+    - name: Test SSH connectivity to VPN instance
+      run: |
+        # First get the VPN IP from terraform state
+        VPN_IP=$(terraform output -raw vpn_instance_public_ip 2>/dev/null)
+        
+        if [ -z "$VPN_IP" ] || [ "$VPN_IP" = "null" ]; then
+          echo "Could not get VPN IP from terraform output, checking if instance exists..."
+          terraform show | grep -A 5 "vpn_instance" || echo "No VPN instance found in state"
+          exit 1
+        fi
+        
+        echo "Testing SSH connectivity to $VPN_IP"
+        
+        # Test SSH connectivity with timeout and retries
+        for i in {1..5}; do
+          echo "SSH attempt $i/5..."
+          if timeout 30 ssh -i vpn_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=5 ubuntu@$VPN_IP "echo 'SSH connection successful'"; then
+            echo "SSH connectivity test passed"
+            exit 0
+          fi
+          echo "SSH attempt $i failed, waiting 10 seconds..."
+          sleep 10
+        done
+        
+        echo "All SSH connectivity tests failed"
+        exit 1
+
+    - name: Apply VPN provisioning
+      timeout-minutes: 10
+      env:
+        # Reduce log verbosity to see actual errors
+        TF_LOG: INFO
+      run: |
+          # Validate variables first
+          echo "Validating WireGuard keys..."
+          if [ ! -s wg.key ] || [ ! -s client.key ]; then
+            echo "Error: WireGuard key files are empty or missing"
+            exit 1
+          fi
+          
+          # Apply with better error handling
+          terraform apply \
+            -target=null_resource.vpn_provision \
+            -var="lb_ip=${{ needs.helm.outputs.lb_ip }}" \
+            -var="domain=${{ secrets.DOMAIN }}" \
+            -var="vpn_wireguard_private_key=$(cat wg.key)" \
+            -var="vpn_wireguard_public_key=${{ secrets.VPN_WIREGUARD_PUB_KEY }}" \
+            -var="vpn_client_private_key=$(cat client.key)" \
+            -var="vpn_wireguard_client_public_key=${{ secrets.VPN_WIREGUARD_CLIENT_PUB_KEY }}" \
+            -auto-approve
+
+    - name: Create public DNS record for webhook
+      run: |
+          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{
+                "type": "A",
+                "name": "n8n-webhook.${{ secrets.DOMAIN }}",
+                "content": "'"${{ needs.helm.outputs.lb_ip }}"'",
+                "ttl": 120,
+                "proxied": false
+            }'
+            
+    - name: Capture VPN public IP
+      id: vpn-ip
+      run: |
+          echo "vpn_ip=$(terraform output -raw vpn_instance_public_ip)" >> "$GITHUB_OUTPUT"
+          
+    - name: Fetch client config from VPN
+      run: |
+              scp -o StrictHostKeyChecking=no -i vpn_key.pem ubuntu@${{ steps.vpn-ip.outputs.vpn_ip }}:/home/ubuntu/wg0-client.conf ./wg0-client.conf
+
+    - name: Upload WireGuard client config
+      uses: actions/upload-artifact@v4
+      with:
+          name: wg0-client
+          path: ./terraform/wg0-client.conf
+                    
+    - name: Cleanup sensitive files
+      if: always()
+      run: rm -f wg.key client.key vpn_key.pem oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub terraform.tfvars

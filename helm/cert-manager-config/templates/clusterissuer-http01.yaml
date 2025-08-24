@@ -1,0 +1,39 @@
+{{- if .Values.clusterIssuers.http01.enabled }}
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.clusterIssuers.http01.prod.name | default "letsencrypt-prod" }}
+  labels:
+    {{- include "cert-manager-config.labels" . | nindent 4 }}
+  
+spec:
+  acme:
+    email: {{ .Values.clusterIssuers.http01.email | required "clusterIssuers.http01.email is required" }}
+    server: {{ .Values.clusterIssuers.http01.prod.server | default "https://acme-v02.api.letsencrypt.org/directory" }}
+    privateKeySecretRef:
+      name: {{ .Values.clusterIssuers.http01.prod.privateKeySecretRef | default "letsencrypt-prod-key" }}
+    solvers:
+    - http01:
+        ingress:
+          class: {{ .Values.clusterIssuers.http01.ingressClass | default "nginx" }}
+{{- if .Values.clusterIssuers.http01.staging.enabled }}
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.clusterIssuers.http01.staging.name | default "letsencrypt-staging" }}
+  labels:
+    {{- include "cert-manager-config.labels" . | nindent 4 }}
+spec:
+  acme:
+    email: {{ .Values.clusterIssuers.http01.email }}
+    server: {{ .Values.clusterIssuers.http01.staging.server | default "https://acme-staging-v02.api.letsencrypt.org/directory" }}
+    privateKeySecretRef:
+      name: {{ .Values.clusterIssuers.http01.staging.privateKeySecretRef | default "letsencrypt-staging-key" }}
+    solvers:
+    - http01:
+        ingress:
+          class: {{ .Values.clusterIssuers.http01.ingressClass | default "nginx" }}
+{{- end }}
+{{- end }}

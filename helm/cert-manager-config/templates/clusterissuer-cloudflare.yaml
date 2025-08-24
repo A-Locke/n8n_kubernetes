@@ -1,0 +1,28 @@
+{{- if .Values.clusterIssuers.cloudflare.enabled }}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ .Values.clusterIssuers.cloudflare.name | default "letsencrypt-cloudflare" }}
+  labels:
+    {{- include "cert-manager-config.labels" . | nindent 4 }}
+    
+spec:
+  acme:
+    email: {{ .Values.clusterIssuers.cloudflare.email | required "clusterIssuers.cloudflare.email is required" }}
+    server: {{ .Values.clusterIssuers.cloudflare.server | default "https://acme-v02.api.letsencrypt.org/directory" }}
+    privateKeySecretRef:
+      name: {{ .Values.clusterIssuers.cloudflare.privateKeySecretRef | default "letsencrypt-cloudflare-key" }}
+    solvers:
+    - dns01:
+        cloudflare:
+          {{- if .Values.clusterIssuers.cloudflare.apiToken }}
+          apiTokenSecretRef:
+            name: {{ .Values.clusterIssuers.cloudflare.secretName | default "cloudflare-api-token-secret" }}
+            key: {{ .Values.clusterIssuers.cloudflare.secretKey | default "api-token" }}
+          {{- else if .Values.clusterIssuers.cloudflare.apiKey }}
+          email: {{ .Values.clusterIssuers.cloudflare.email }}
+          apiKeySecretRef:
+            name: {{ .Values.clusterIssuers.cloudflare.secretName | default "cloudflare-api-key-secret" }}
+            key: {{ .Values.clusterIssuers.cloudflare.secretKey | default "api-key" }}
+          {{- end }}
+{{- end }}

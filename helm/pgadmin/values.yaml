@@ -1,0 +1,41 @@
+pgadmin4:
+  env:
+    email: ""         # override via --set or fill in here
+    password: ""
+
+  serverDefinitions:
+    enabled: true
+    resourceType: ConfigMap
+    servers:
+      postgres-n8n:
+        Name: "Postgres (n8n)"
+        Group: "Servers"
+        Host: "postgres-postgresql.data.svc.cluster.local"
+        Port: 5432
+        MaintenanceDB: "n8n"
+        Username: "n8n"
+        SSLMode: "prefer"
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  persistentVolume:
+    enabled: false
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      kubernetes.io/ingress.class: nginx
+      cert-manager.io/cluster-issuer: "letsencrypt-cloudflare"
+      kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: ""    # fill in your domain
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - hosts:
+          - ""
+        secretName: pgadmin-tls

@@ -1,0 +1,12 @@
+apiVersion: v2
+name: pgadmin
+description: Web UI for your Postgres instance
+type: application
+version: 0.1.0          # your wrapper version
+appVersion: "8.6"       # pgAdmin4 version (chart shows this in UI)
+
+dependencies:
+  - name: pgadmin4
+    version: "1.47.x"   # latest on ArtifactHub
+    repository: https://helm.runix.net
+    condition: pgadmin4.install
