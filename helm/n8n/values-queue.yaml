@@ -49,7 +49,10 @@ redis:
   enabled: true
   architecture: standalone
   auth:
-  enabled: true 
+    enabled: true
+    # keep ACL off unless you need named users
+    acl:
+      enabled: false
   master:
     persistence:
       enabled: false
