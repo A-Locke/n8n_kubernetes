@@ -1,29 +1,37 @@
 # Default values for postgres
 # This is a YAML-formatted file.
 
+# ────────────────────────────────────────────────────────────────
 # Global settings
+# ────────────────────────────────────────────────────────────────
 global:
+  # Send Bitnami image pulls to GHCR by default
   imageRegistry: ghcr.io
   postgresql:
     auth:
-      postgresPassword: ""  # Set via --set or external secret
+      postgresPassword: ""   # Set via --set or external secret
       username: "n8n"
-      password: ""  # Set via --set or external secret
+      password: ""           # Set via --set or external secret
       database: "n8n"
 
-# PostgreSQL configuration using bitnami/postgresql chart
+# ────────────────────────────────────────────────────────────────
+# PostgreSQL configuration (Bitnami subchart)
+# ────────────────────────────────────────────────────────────────
 postgresql:
   enabled: true
+
+  # Pull Postgres image from GHCR (no tag = use chart default that exists today)
   image:
-     registry: ghcr.io
-     repository: bitnami/postgresql
-   # tag: "<optional-ghcr-tag>"   # (omit to use chart’s default that exists on GHCR)
+    registry: ghcr.io
+    repository: bitnami/postgresql
+    # tag: "<optional-ghcr-tag>"   # Pin if you want a specific version
+
   auth:
-    postgresPassword: ""  # Set via --set or external secret
+    postgresPassword: ""      # Set via --set or external secret
     username: "n8n"
-    password: ""  # Set via --set or external secret
+    password: ""              # Set via --set or external secret
     database: "n8n"
-    existingSecret: ""  # Use existing secret if available
+    existingSecret: ""        # Use existing secret if available
     secretKeys:
       adminPasswordKey: "postgres-password"
       userPasswordKey: "password"
@@ -31,16 +39,16 @@ postgresql:
   # Architecture
   architecture: standalone
 
-  # Primary configuration
+  # Primary StatefulSet
   primary:
     persistence:
       enabled: true
       size: 50Gi
-      storageClass: "oci-bv"
+      storageClass: "oci-bv"  # OKE Block Volume
 
     resources:
       limits:
-        cpu:    150m
+        cpu: 150m
         memory: 512Mi
       requests:
         cpu: 60m
@@ -56,23 +64,23 @@ postgresql:
       runAsUser: 1001
       runAsNonRoot: true
 
-    # Service configuration
+    # Service
     service:
       type: ClusterIP
       ports:
         postgresql: 5432
 
-    # PostgreSQL configuration
+    # Init DB (idempotent)
     initdb:
       scripts:
         init.sql: |
           -- Create n8n database if it doesn't exist
-          SELECT 'CREATE DATABASE n8n' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'n8n')\gexec
+          SELECT 'CREATE DATABASE n8n' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'n8n')\gexec;
 
           -- Grant privileges to n8n user
           GRANT ALL PRIVILEGES ON DATABASE n8n TO n8n;
 
-    # Backup configuration (optional)
+    # (optional) Backups
     backup:
       enabled: false
       cronjob:
@@ -84,9 +92,9 @@ postgresql:
   metrics:
     enabled: false
     image:
-       registry: ghcr.io
-       repository: bitnami/postgres-exporter
-       # tag: "<optional-ghcr-tag>"
+      registry: ghcr.io
+      repository: bitnami/postgres-exporter
+      # tag: "<optional-ghcr-tag>"
     serviceMonitor:
       enabled: false
 
@@ -94,20 +102,19 @@ postgresql:
   networkPolicy:
     enabled: false
 
-# Name overrides
+# ────────────────────────────────────────────────────────────────
+# Chart-level misc
+# ────────────────────────────────────────────────────────────────
 nameOverride: ""
 fullnameOverride: ""
 
-# Service account
 serviceAccount:
   create: true
   annotations: {}
   name: ""
 
-# Pod annotations
 podAnnotations: {}
 
-# Node selector, tolerations, affinity
 nodeSelector: {}
 tolerations: []
 affinity: {}
