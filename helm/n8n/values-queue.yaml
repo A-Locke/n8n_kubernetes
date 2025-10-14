@@ -45,6 +45,10 @@ externalPostgresql:
 # ────────────────────────────────────────────────────────────────
 # Redis (in-cluster Bitnami chart)
 # ────────────────────────────────────────────────────────────────
+global:
+  security:
+    allowInsecureImages: true
+
 redis:
   enabled: true
   architecture: standalone
