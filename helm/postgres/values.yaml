@@ -31,7 +31,7 @@ postgresql:
     persistence:
       enabled: true
       size: 50Gi
-      storageClass: ""
+      storageClass: "oci-bv"
 
     resources:
       limits:
