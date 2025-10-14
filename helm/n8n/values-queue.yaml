@@ -48,11 +48,19 @@ externalPostgresql:
 redis:
   enabled: true
   architecture: standalone
+
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/redis
+    tag: 8.0.3-debian-12-r1   # the same tag, now in the legacy repo
+    pullPolicy: IfNotPresent
+    pullSecrets: []           # add dockerhub-creds here if you hit rate limits
+
   auth:
     enabled: true
-    # keep ACL off unless you need named users
     acl:
       enabled: false
+
   master:
     persistence:
       enabled: false
