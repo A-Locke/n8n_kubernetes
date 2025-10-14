@@ -3,6 +3,7 @@
 
 # Global settings
 global:
+  imageRegistry: ghcr.io
   postgresql:
     auth:
       postgresPassword: ""  # Set via --set or external secret
@@ -13,6 +14,10 @@ global:
 # PostgreSQL configuration using bitnami/postgresql chart
 postgresql:
   enabled: true
+  image:
+     registry: ghcr.io
+     repository: bitnami/postgresql
+   # tag: "<optional-ghcr-tag>"   # (omit to use chart’s default that exists on GHCR)
   auth:
     postgresPassword: ""  # Set via --set or external secret
     username: "n8n"
@@ -78,6 +83,10 @@ postgresql:
   # Metrics (optional)
   metrics:
     enabled: false
+    image:
+       registry: ghcr.io
+       repository: bitnami/postgres-exporter
+       # tag: "<optional-ghcr-tag>"
     serviceMonitor:
       enabled: false
 
