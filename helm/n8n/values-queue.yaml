@@ -3,7 +3,7 @@
 # ────────────────────────────────────────────────────────────────
 image:
   repository: n8nio/n8n
-  tag: "1.15.15"
+  tag: "1.115.2"
   pullPolicy: IfNotPresent
 
 # ────────────────────────────────────────────────────────────────
@@ -48,6 +48,8 @@ externalPostgresql:
 redis:
   enabled: true
   architecture: standalone
+  auth:
+  enabled: true 
   master:
     persistence:
       enabled: false
@@ -56,6 +58,8 @@ redis:
 # Main (UI / REST API / scheduler)
 # ────────────────────────────────────────────────────────────────
 main:
+  extraEnvVars:
+    N8N_LISTEN_ADDRESS: "0.0.0.0"
   resources:
     requests:
       cpu:    200m
@@ -113,7 +117,7 @@ worker:
 
   readinessProbe:
     httpGet:
-      path: /healthz
+      path: /healthz/readiness
       port: "http"
       scheme: HTTP
     initialDelaySeconds: 60
@@ -151,7 +155,7 @@ webhook:
 
   readinessProbe:
     httpGet:
-      path: /healthz
+      path: /healthz/readiness
       port: "http"
       scheme: HTTP
     initialDelaySeconds: 60
