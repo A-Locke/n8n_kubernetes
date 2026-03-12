@@ -30,11 +30,11 @@ Secrets**.
 
 The pipeline provisions the following:
 
--   **OKE Kubernetes Cluster** on Always Free Ampere A1 nodes\
+-   **OKE Kubernetes Cluster** on Always Free Ampere A1 nodes
 -   **Helm-managed deployments**: Cert-Manager, Ingress-Nginx,
-    PostgreSQL, pgAdmin, and n8n\
+    PostgreSQL, pgAdmin, and n8n
 -   **WireGuard VPN** hosted on a free AMD instance for secure ingress
-    access\
+    access
 -   **Cloudflare DNS automation** for certificate issuance and DNS
     records
 
@@ -42,13 +42,13 @@ The pipeline provisions the following:
 
 ## n8n Modes: Regular vs Queue
 
-**Regular Mode (default)**\
-- All components run in a single container.\
+**Regular Mode (default)**
+- All components run in a single container.
 - Simple to start, but scales poorly under load.
 
-**Queue Mode (recommended for production)**\
-- Separates **webhook listener** and **workflow workers**.\
-- Workers consume from a queue (via Redis).\
+**Queue Mode (recommended for production)**
+- Separates **webhook listener** and **workflow workers**.
+- Workers consume from a queue (via Redis).
 - Enables **independent horizontal scaling**.
 
 *Example: 40 workflows enqueue quickly → listener stays responsive → 20
@@ -59,9 +59,9 @@ workers clear the backlog in parallel.*
 ## Oracle Free Tier Resources
 
 -   **2× Ampere A1 Compute (VM.Standard.A1.Flex)** --- up to 4 OCPUs &
-    24 GB RAM each (K8s node pool).\
+    24 GB RAM each (K8s node pool).
 -   **1× AMD Compute Instance (VM.Standard.E2.1)** --- for sidecar
-    services (VPN, DNS).\
+    services (VPN, DNS).
 -   **Block Volumes, Object Storage, Load Balancer, Networking** ---
     within free limits.
 
@@ -71,43 +71,29 @@ Always choose shapes marked **"Always Free Eligible."**
 
 ## CI/CD Infrastructure Cost Comparison
 
-  -----------------------------------------------------------------------
-  Component            Oracle (Free Tier)   AWS (EKS)     Azure (AKS)
-  -------------------- -------------------- ------------- ---------------
-  Control Plane        ✅ Free (OKE)        ❌ \$72/mo    ✅ Free basic /
-                                                          ❌ \$72 with
-                                                          SLA
-
-  Compute Nodes        ✅ 2× A1.Flex        ❌ \$98/mo    ❌ \$140/mo
-
-  VM for VPN/DNS       ✅ Free              ❌ \$7/mo     ❌ \$6/mo
-
-  Storage (200GB)      ✅ Included          ❌ \$45/mo    ❌ \$30/mo
-
-  Load Balancer        ✅ Free (10 Mbps)    ❌ \$20--25   ✅ Free basic /
-                                                          ❌ \$18 std
-
-  Outbound 100GB       ✅ Free (10TB)       ❌ \$9/mo     ❌ \$9/mo
-
-  **Total**            🟢 \$0               🔴 \$250+     🟡 \$195+ / 🔴
-                                                          \$267+
-  -----------------------------------------------------------------------
-
-------------------------------------------------------------------------
+| Component                     | Oracle Cloud (Free Tier)                      | AWS (EKS)            | Azure (AKS)                               |
+|------------------------------|-----------------------------------------------|----------------------|-------------------------------------------|
+| Kubernetes Control Plane     | ✅ Free (OKE)                                  | ❌ $72/mo            | ✅ Free (basic)<br>❌ $72/mo (SLA)         |
+| Compute Nodes                | ✅ 2× A1.Flex                                  | ❌ $98/mo            | ❌ $140/mo                                |
+| VM for VPN and DNS           | ✅ Free                                        | ❌ $7/mo             | ❌ $6/mo                                  |
+| Storage (200 GB)             | ✅ Included                                    | ❌ ~$45/mo           | ❌ ~$30/mo                                |
+| Load Balancer                | ✅ 1 basic LB included (10 Mbps)               | ❌ $20–25/mo         | ✅ Basic Free<br>❌ Standard ~$18/mo       |
+| Outbound Traffic (100 GB)    | ✅ Free (up to 10 TB/mo)                       | ❌ $9/mo             | ❌ $8–9/mo                                |
+| **Total Monthly Cost**       | 🟢 **$0**                                      | 🔴 **$250+**         | 🟡 **$195+** / 🔴 **$267+**               |
 
 ## Infrastructure Layout
 
-1.  **Kubernetes Node Pool**: 2× Ampere A1 free-tier nodes running OKE.\
+1.  **Kubernetes Node Pool**: 2× Ampere A1 free-tier nodes running OKE.
 2.  **AMD Compute Instance**: Runs DNS resolver and WireGuard VPN.
 
 ------------------------------------------------------------------------
 
 ## Prerequisites
 
--   **OCI account** with compartment, bucket, namespace.\
--   **GitHub repository** with pipeline code.\
+-   **OCI account** with compartment, bucket, namespace.
+-   **GitHub repository** with pipeline code.
 -   Installed locally: `kubectl`, `helm`, `terraform`, `openssl`,
-    `ssh-keygen`, `wg`.\
+    `ssh-keygen`, `wg`.
 -   **PowerShell** (Windows) or **bash** (Linux/macOS).
 
 ------------------------------------------------------------------------
@@ -235,9 +221,9 @@ Then:
 
 ## Pipeline Overview
 
-1.  **Terraform Apply Job**: init, plan, apply, extract kubeconfig.\
+1.  **Terraform Apply Job**: init, plan, apply, extract kubeconfig.
 2.  **Helm Install Charts Job**: install Cert-Manager, Ingress-Nginx,
-    PostgreSQL, pgAdmin, n8n.\
+    PostgreSQL, pgAdmin, n8n.
 3.  **Post-Helm VPN Provision Job**: SSH into VPN host, configure
     WireGuard, update Cloudflare, upload client config.
 
@@ -251,16 +237,16 @@ In GitHub: `Actions → OCI Infra Pipeline → Run workflow`.
 
 ## Next Steps
 
--   Autoscaling with HPA\
--   Monitoring with Prometheus & Grafana\
--   RBAC roles & database backups\
+-   Autoscaling with HPA
+-   Monitoring with Prometheus & Grafana
+-   RBAC roles & database backups
 -   Contributions via PRs
 
 ------------------------------------------------------------------------
 
 ## Safety Tips
 
--   Never commit private keys.\
--   Scope GitHub secrets per environment.\
+-   Never commit private keys.
+-   Scope GitHub secrets per environment.
 -   Rotate keys periodically.\
 -   Restrict Cloudflare API token scope.
