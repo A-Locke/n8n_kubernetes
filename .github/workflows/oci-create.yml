@@ -297,16 +297,26 @@ jobs:
             --set pgadmin4.ingress.hosts[0].host=pgadmin.${{ secrets.DOMAIN }} \
             --set pgadmin4.ingress.tls[0].hosts[0]=pgadmin.${{ secrets.DOMAIN }}
 
+      - name: Install Valkey (bitnami)
+        run: |
+            helm upgrade --install n8n-valkey bitnami/valkey \
+                --namespace workflows \
+                --create-namespace \
+                --values ./valkey/values.yaml \
+                --set auth.password="${{ secrets.POSTGRES_USER_PASSWORD }}" \
+                --wait --timeout 3m
+
       - name: Install n8n (community-charts)
         run: |
             helm repo add community-charts https://community-charts.github.io/helm-charts
             helm repo update
             helm upgrade --install n8n community-charts/n8n \
-                --version 1.13.4 \
+                --version 1.16.29 \
                 --namespace workflows \
                 --create-namespace \
                 --values ./n8n/values-queue.yaml \
                 --set externalPostgresql.password="${{ secrets.POSTGRES_USER_PASSWORD }}" \
+                --set externalRedis.password="${{ secrets.POSTGRES_USER_PASSWORD }}" \
                 --set ingress.hosts[0].host=n8n.${{ secrets.DOMAIN }} \
                 --set ingress.hosts[1].host=n8n-webhook.${{ secrets.DOMAIN }} \
                 --set webhook.url=https://n8n-webhook.${{ secrets.DOMAIN }} \

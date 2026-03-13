@@ -32,6 +32,9 @@ gathered.TXT
 # Lock files
 .terraform.lock.hcl
 
+# Local planning notes
+Plan.md
+
 # Ignore editor/OS/system-specific files
 *.swp
 *.swo

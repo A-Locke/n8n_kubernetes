@@ -48,7 +48,7 @@ The pipeline provisions the following:
 
 **Queue Mode (recommended for production)**
 - Separates **webhook listener** and **workflow workers**.
-- Workers consume from a queue (via Redis).
+- Workers consume from a queue (via Valkey).
 - Enables **independent horizontal scaling**.
 
 *Example: 40 workflows enqueue quickly → listener stays responsive → 20
@@ -223,7 +223,7 @@ Then:
 
 1.  **Terraform Apply Job**: init, plan, apply, extract kubeconfig.
 2.  **Helm Install Charts Job**: install Cert-Manager, Ingress-Nginx,
-    PostgreSQL, pgAdmin, n8n.
+    PostgreSQL, pgAdmin, Valkey, n8n.
 3.  **Post-Helm VPN Provision Job**: SSH into VPN host, configure
     WireGuard, update Cloudflare, upload client config.
 
@@ -250,3 +250,7 @@ In GitHub: `Actions → OCI Infra Pipeline → Run workflow`.
 -   Scope GitHub secrets per environment.
 -   Rotate keys periodically.\
 -   Restrict Cloudflare API token scope.
+
+------------------------------------------------------------------------
+
+*Written with AI assistance (Claude by Anthropic).*

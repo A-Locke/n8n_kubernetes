@@ -82,6 +82,9 @@ jobs:
       - name: Uninstall n8n
         run: helm uninstall n8n --namespace workflows --wait --timeout 5m || true
 
+      - name: Uninstall Valkey
+        run: helm uninstall n8n-valkey --namespace workflows --wait --timeout 3m || true
+
       - name: Uninstall pgAdmin
         run: helm uninstall pgadmin --namespace data --wait --timeout 5m || true
 

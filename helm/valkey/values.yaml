@@ -1,0 +1,21 @@
+# ────────────────────────────────────────────────────────────────
+# Valkey (bitnami/valkey) – queue broker for n8n
+# Installed as release: n8n-valkey in namespace: workflows
+# ────────────────────────────────────────────────────────────────
+architecture: standalone
+
+auth:
+  enabled: true
+  password: ""  # set via --set auth.password at install time
+
+primary:
+  persistence:
+    enabled: false
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 150m
+      memory: 192Mi

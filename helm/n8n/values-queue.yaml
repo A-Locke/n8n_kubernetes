@@ -3,7 +3,7 @@
 # ────────────────────────────────────────────────────────────────
 image:
   repository: n8nio/n8n
-  tag: "1.115.2"
+  tag: "2.11.2"
   pullPolicy: IfNotPresent
 
 # ────────────────────────────────────────────────────────────────
@@ -43,31 +43,16 @@ externalPostgresql:
   password: ""
 
 # ────────────────────────────────────────────────────────────────
-# Redis (in-cluster Bitnami chart)
+# Valkey – deployed as a separate Helm release (bitnami/valkey)
+# Service: n8n-valkey-primary.workflows.svc.cluster.local
 # ────────────────────────────────────────────────────────────────
-global:
-  security:
-    allowInsecureImages: true
-
 redis:
-  enabled: true
-  architecture: standalone
+  enabled: false
 
-  image:
-    registry: docker.io
-    repository: bitnamilegacy/redis
-    tag: 8.0.3-debian-12-r1   # the same tag, now in the legacy repo
-    pullPolicy: IfNotPresent
-    pullSecrets: []           # add dockerhub-creds here if you hit rate limits
-
-  auth:
-    enabled: true
-    acl:
-      enabled: false
-
-  master:
-    persistence:
-      enabled: false
+externalRedis:
+  host: "n8n-valkey-primary.workflows.svc.cluster.local"
+  port: 6379
+  password: ""  # set via --set externalRedis.password at install time
 
 # ────────────────────────────────────────────────────────────────
 # Main (UI / REST API / scheduler)
