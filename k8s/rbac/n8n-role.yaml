@@ -1,0 +1,16 @@
+# Minimal Role for n8n pods in the workflows namespace.
+# n8n doesn't call the K8s API, but this demonstrates least-privilege scoping:
+# read-only access to pods, services, and endpoints within its own namespace only.
+# No cross-namespace access, no secret access, no write permissions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: n8n-readonly
+  namespace: workflows
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list"]

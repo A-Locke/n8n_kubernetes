@@ -1,0 +1,11 @@
+# Default deny all ingress to the workflows namespace.
+# n8n components are only reachable via the explicit allow policies below.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: workflows
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress

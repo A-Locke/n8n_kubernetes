@@ -1,0 +1,16 @@
+# ResourceQuota for the data namespace (PostgreSQL + pgAdmin).
+# Keeps database workloads from expanding beyond their expected footprint.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: data-quota
+  namespace: data
+spec:
+  hard:
+    requests.cpu: "500m"
+    requests.memory: "1Gi"
+    limits.cpu: "1"
+    limits.memory: "2Gi"
+    pods: "10"
+    services: "5"
+    persistentvolumeclaims: "5"

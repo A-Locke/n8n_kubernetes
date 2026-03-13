@@ -1,0 +1,19 @@
+# PodDisruptionBudget for the n8n main pod (UI + scheduler + REST API).
+# Ensures at least 1 main pod is always available during voluntary disruptions
+# (node drain, rolling upgrade). Workers and webhooks are stateless queue consumers
+# and don't need a PDB — they can safely go to 0 without data loss.
+#
+# Note: the community-charts/n8n chart labels the main deployment with
+# app.kubernetes.io/component: main. Verify with:
+#   kubectl get pods -n workflows --show-labels
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: n8n-main-pdb
+  namespace: workflows
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: n8n
+      app.kubernetes.io/component: main

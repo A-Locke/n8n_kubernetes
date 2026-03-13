@@ -94,7 +94,7 @@ main:
 # ────────────────────────────────────────────────────────────────
 worker:
   mode: queue
-  count: 5
+  count: 2  # HPA (k8s/hpa/n8n-worker-hpa.yaml) scales to 5 under load
   
   resources:
     requests:
@@ -131,7 +131,7 @@ worker:
 webhook:
   mode: queue
   url: ""
-  count: 5
+  count: 2  # HPA (k8s/hpa/n8n-webhook-hpa.yaml) scales to 5 under load
   resources:
     requests:
       cpu: 100m

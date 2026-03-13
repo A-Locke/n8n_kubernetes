@@ -79,6 +79,14 @@ jobs:
           EOF
           chmod 600 ~/.oci/config
 
+      - name: Delete RBAC, NetworkPolicy, HPA, ResourceQuota, PDB
+        run: |
+          kubectl delete -f ../k8s/rbac/ --ignore-not-found=true
+          kubectl delete -f ../k8s/network-policies/ --ignore-not-found=true
+          kubectl delete -f ../k8s/hpa/ --ignore-not-found=true
+          kubectl delete -f ../k8s/quotas/ --ignore-not-found=true
+          kubectl delete -f ../k8s/pdb/ --ignore-not-found=true
+
       - name: Uninstall n8n
         run: helm uninstall n8n --namespace workflows --wait --timeout 5m || true
 

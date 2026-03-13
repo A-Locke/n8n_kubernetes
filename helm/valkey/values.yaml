@@ -10,7 +10,16 @@ auth:
 
 primary:
   persistence:
-    enabled: false
+    enabled: false  # OCI block volumes are 50GB minimum; all 200GB Always Free already
+                    # used by 2× OKE boot vols + VPN boot vol + Postgres PVC.
+
+  # AOF writes to emptyDir (no PVC). Survives container crashes/restarts within the
+  # same pod (emptyDir is pod-scoped, not container-scoped). At most 1 second of queue
+  # job loss on a hard Valkey crash. Jobs are lost if the pod is evicted or rescheduled
+  # — acceptable for this setup where node-level failures are not expected.
+  configuration: |
+    appendonly yes
+    appendfsync everysec
 
   resources:
     requests:

@@ -32,7 +32,9 @@ The pipeline provisions the following:
 
 -   **OKE Kubernetes Cluster** on Always Free Ampere A1 nodes
 -   **Helm-managed deployments**: Cert-Manager, Ingress-Nginx,
-    PostgreSQL, pgAdmin, and n8n
+    PostgreSQL, pgAdmin, Valkey, and n8n (v2, queue mode)
+-   **Kubernetes hardening**: RBAC, NetworkPolicy, HPA, ResourceQuota,
+    LimitRange, and PodDisruptionBudget via manifests in `k8s/`
 -   **WireGuard VPN** hosted on a free AMD instance for secure ingress
     access
 -   **Cloudflare DNS automation** for certificate issuance and DNS
@@ -212,18 +214,12 @@ Then:
 
 ---
 
-## Safety Tips
-- Treat `*.pem`, private SSH keys, and WireGuard private keys as **highly sensitive**; never commit them.
-- Use GitHub environment scoping (e.g., `env: prod`) to isolate secrets per environment.
-- Rotate keys periodically and after personnel changes.
-- Limit Cloudflare token to the minimum scopes and a single zone if possible.
-
-
 ## Pipeline Overview
 
 1.  **Terraform Apply Job**: init, plan, apply, extract kubeconfig.
 2.  **Helm Install Charts Job**: install Cert-Manager, Ingress-Nginx,
-    PostgreSQL, pgAdmin, Valkey, n8n.
+    PostgreSQL, pgAdmin, Valkey, n8n; apply RBAC, NetworkPolicy, HPA,
+    ResourceQuota, LimitRange, and PDB manifests from `k8s/`.
 3.  **Post-Helm VPN Provision Job**: SSH into VPN host, configure
     WireGuard, update Cloudflare, upload client config.
 
@@ -237,19 +233,10 @@ In GitHub: `Actions → OCI Infra Pipeline → Run workflow`.
 
 ## Next Steps
 
--   Autoscaling with HPA
+-   Ansible for GitHub Actions provisioning steps
+-   Claude Code skills and Kubernetes MCP for AI-assisted cluster management
+-   n8n MCP server — connect Claude Desktop directly to n8n post-deploy
 -   Monitoring with Prometheus & Grafana
--   RBAC roles & database backups
--   Contributions via PRs
-
-------------------------------------------------------------------------
-
-## Safety Tips
-
--   Never commit private keys.
--   Scope GitHub secrets per environment.
--   Rotate keys periodically.\
--   Restrict Cloudflare API token scope.
 
 ------------------------------------------------------------------------
 

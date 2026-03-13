@@ -1,0 +1,14 @@
+# Default deny all ingress to the data namespace.
+# Postgres and pgAdmin are only reachable via the explicit allow policies below.
+# NOTE: NetworkPolicy enforcement requires a CNI that supports it (Calico, Cilium,
+# or OKE VCN-native pod networking >= 1.25). Policies are valid K8s objects regardless
+# and will be enforced automatically when the CNI supports it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: data
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress

@@ -323,8 +323,15 @@ jobs:
                 --set ingress.tls[0].hosts[0]=n8n.${{ secrets.DOMAIN }} \
                 --set ingress.tls[0].hosts[1]=n8n-webhook.${{ secrets.DOMAIN }} \
                 --wait --timeout 10m
-      
-    
+
+      - name: Apply RBAC, NetworkPolicy, HPA, ResourceQuota, PDB
+        run: |
+          kubectl apply -f ../k8s/rbac/
+          kubectl apply -f ../k8s/network-policies/
+          kubectl apply -f ../k8s/hpa/
+          kubectl apply -f ../k8s/quotas/
+          kubectl apply -f ../k8s/pdb/
+
    post_helm:
     needs: helm
     runs-on: ubuntu-latest

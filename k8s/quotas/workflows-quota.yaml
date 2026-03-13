@@ -1,0 +1,17 @@
+# ResourceQuota for the workflows namespace.
+# Set well above current usage (workers×2 + webhooks×2 + main + valkey ≈ 800m CPU, 3.4Gi RAM)
+# but below cluster capacity to prevent a runaway deployment from consuming all nodes.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: workflows-quota
+  namespace: workflows
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: "8Gi"
+    limits.cpu: "4"
+    limits.memory: "12Gi"
+    pods: "20"
+    services: "10"
+    persistentvolumeclaims: "5"
