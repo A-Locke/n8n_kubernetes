@@ -1,0 +1,14 @@
+---
+# Creates the public Cloudflare DNS A record for n8n-webhook.
+# Replaces the inline curl call in the post_helm workflow job.
+# Runs entirely on localhost — no SSH to any remote host.
+#
+# Required vars (passed via -e @/tmp/ansible_vars.yml):
+#   domain, lb_ip, cloudflare_api_token
+- name: Configure Cloudflare DNS
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  roles:
+    - cloudflare_dns

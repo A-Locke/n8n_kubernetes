@@ -1,0 +1,126 @@
+---
+- name: Install WireGuard, dnsmasq, and iptables-persistent
+  ansible.builtin.apt:
+    name:
+      - wireguard
+      - dnsmasq
+      - iptables-persistent
+    state: present
+    update_cache: true
+  become: true
+
+- name: Stop and disable systemd-resolved and resolvconf
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+    masked: true
+  loop:
+    - systemd-resolved
+    - resolvconf
+  ignore_errors: true
+  become: true
+
+- name: Remove resolvconf package
+  ansible.builtin.apt:
+    name: resolvconf
+    state: absent
+    purge: true
+  become: true
+
+- name: Write static resolv.conf pointing to OCI DNS
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      nameserver 169.254.169.254
+    mode: "0644"
+  become: true
+
+- name: Enable IPv4 forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_set: true
+    state: present
+    reload: true
+  become: true
+
+- name: Allow WireGuard port (UDP 51820)
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: udp
+    destination_port: "51820"
+    jump: ACCEPT
+    action: insert
+    rule_num: 5
+  become: true
+
+- name: Allow DNS UDP (port 53)
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: udp
+    destination_port: "53"
+    jump: ACCEPT
+    action: insert
+    rule_num: 6
+  become: true
+
+- name: Allow DNS TCP (port 53)
+  ansible.builtin.iptables:
+    chain: INPUT
+    protocol: tcp
+    destination_port: "53"
+    jump: ACCEPT
+    action: insert
+    rule_num: 7
+  become: true
+
+- name: Remove OCI default REJECT rule from FORWARD chain
+  ansible.builtin.command: iptables -D FORWARD 1
+  become: true
+  ignore_errors: true
+  changed_when: false
+
+- name: Save iptables rules
+  ansible.builtin.command: netfilter-persistent save
+  become: true
+  changed_when: true
+
+- name: Deploy WireGuard server config
+  ansible.builtin.template:
+    src: wg0.conf.j2
+    dest: /etc/wireguard/wg0.conf
+    mode: "0600"
+  become: true
+  notify: restart wireguard
+
+- name: Enable and start WireGuard
+  ansible.builtin.systemd:
+    name: wg-quick@wg0
+    enabled: true
+    state: started
+  become: true
+
+- name: Deploy dnsmasq config
+  ansible.builtin.template:
+    src: locke-dns.conf.j2
+    dest: /etc/dnsmasq.d/locke-dns.conf
+    mode: "0644"
+  become: true
+  notify: restart dnsmasq
+
+- name: Ensure dnsmasq is enabled and started
+  ansible.builtin.systemd:
+    name: dnsmasq
+    enabled: true
+    state: started
+  become: true
+
+- name: Deploy WireGuard client config
+  ansible.builtin.template:
+    src: wg0-client.conf.j2
+    dest: /home/ubuntu/wg0-client.conf
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+  become: true

@@ -1,0 +1,29 @@
+---
+# Provisions WireGuard VPN, dnsmasq, and generates the client config.
+# Replaces the Terraform null_resource.vpn_provision.
+#
+# Required vars (passed via -e @/tmp/ansible_vars.yml):
+#   vpn_wireguard_private_key, vpn_wireguard_client_public_key,
+#   vpn_wireguard_public_key, vpn_client_private_key, lb_ip, domain
+- name: Provision WireGuard VPN
+  hosts: vpn
+  gather_facts: false
+
+  pre_tasks:
+    - name: Wait for SSH to become available
+      ansible.builtin.wait_for_connection:
+        delay: 5
+        timeout: 120
+
+    - name: Gather facts
+      ansible.builtin.setup:
+
+  roles:
+    - wireguard
+
+  post_tasks:
+    - name: Fetch WireGuard client config to runner
+      ansible.builtin.fetch:
+        src: /home/ubuntu/wg0-client.conf
+        dest: /tmp/wg0-client.conf
+        flat: true

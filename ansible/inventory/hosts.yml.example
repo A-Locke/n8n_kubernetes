@@ -1,0 +1,9 @@
+# This file is an example only. The real hosts.yml is generated at pipeline
+# runtime from `terraform output -raw vpn_instance_public_ip` and is never committed.
+# See .gitignore — ansible/inventory/hosts.yml is excluded.
+all:
+  hosts:
+    vpn:
+      ansible_host: <VPN_PUBLIC_IP>
+      ansible_user: ubuntu
+      ansible_ssh_private_key_file: /path/to/vpn_key.pem

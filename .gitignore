@@ -35,6 +35,9 @@ gathered.TXT
 # Local planning notes
 Plan.md
 
+# Ansible generated inventory (contains real VPN IP — generated at pipeline runtime)
+ansible/inventory/hosts.yml
+
 # Ignore editor/OS/system-specific files
 *.swp
 *.swo

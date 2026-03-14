@@ -17,10 +17,9 @@ jobs:
 
       - name: Decode terraform keys
         run: |
-          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}"    | base64 -d > oci_api_key.pem
-          echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}"     | base64 -d > oke_ssh_key.pub
-          echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"     | base64 -d > vpn_ssh_key.pub
-          echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
+          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}" | base64 -d > oci_api_key.pem
+          echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}" | base64 -d > oke_ssh_key.pub
+          echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}" | base64 -d > vpn_ssh_key.pub
 
       - name: Render backend_override.tf from template
         run: |
@@ -104,6 +103,7 @@ jobs:
         run: |
           echo "Deleting PostgreSQL PVCs (this will trigger volume deletion if StorageClass reclaim policy is Delete)..."
           kubectl delete pvc -l app.kubernetes.io/instance=postgres -n data || true
+          kubectl wait --for=delete pvc -l app.kubernetes.io/instance=postgres -n data --timeout=120s || true
 
       - name: Uninstall ingress-nginx-config
         run: helm uninstall ingress-nginx-config --namespace ingress-nginx --wait --timeout 5m || true
@@ -132,10 +132,9 @@ jobs:
 
       - name: Decode terraform keys
         run: |
-          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}"    | base64 -d > oci_api_key.pem
-          echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}"     | base64 -d > oke_ssh_key.pub
-          echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"     | base64 -d > vpn_ssh_key.pub
-          echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
+          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}" | base64 -d > oci_api_key.pem
+          echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}" | base64 -d > oke_ssh_key.pub
+          echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}" | base64 -d > vpn_ssh_key.pub
 
       - name: Create terraform.tfvars with decoded secrets
         run: |
@@ -160,10 +159,6 @@ jobs:
 
           vpn_ssh_key = <<EOKEY
           $(cat vpn_ssh_key.pub)
-          EOKEY
-
-          vpn_private_key = <<EOKEY
-          $(cat vpn_key.pem)
           EOKEY
 
           vpn_instance_shape   = "${{ secrets.VPN_INSTANCE_SHAPE }}"

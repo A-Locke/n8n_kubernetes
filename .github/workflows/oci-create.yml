@@ -25,10 +25,9 @@ jobs:
 
       - name: Create terraform.tfvars with decoded secrets
         run: |
-          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}"    | base64 -d > oci_api_key.pem
-          echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}"     | base64 -d > oke_ssh_key.pub
-          echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"     | base64 -d > vpn_ssh_key.pub
-          echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
+          echo "${{ secrets.TF_PRIVATE_KEY_B64 }}" | base64 -d > oci_api_key.pem
+          echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}" | base64 -d > oke_ssh_key.pub
+          echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}" | base64 -d > vpn_ssh_key.pub
 
           tee terraform.tfvars > /dev/null <<EOF
           tenancy_ocid         = "${{ secrets.TENANCY_OCID }}"
@@ -51,10 +50,6 @@ jobs:
 
           vpn_ssh_key = <<EOKEY
           $(cat vpn_ssh_key.pub)
-          EOKEY
-
-          vpn_private_key = <<EOKEY
-          $(cat vpn_key.pem)
           EOKEY
 
           vpn_instance_shape   = "${{ secrets.VPN_INSTANCE_SHAPE }}"
@@ -140,7 +135,7 @@ jobs:
             echo "vpn_ip=$(terraform output -raw vpn_instance_public_ip)" >> "$GITHUB_OUTPUT"
     
       - name: Cleanup decoded secrets
-        run: rm -f oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub vpn_key.pem terraform.tfvars
+        run: rm -f oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub terraform.tfvars
       - name: Cleanup backend override file
         run: rm -f backend_override.tf
         
@@ -270,6 +265,14 @@ jobs:
           name: lb-ip
           path: ./helm/lb_ip.txt
           
+      - name: Clean up stale Postgres PVC if present
+        run: |
+          helm uninstall postgres --namespace data || true
+          kubectl delete statefulset -l app.kubernetes.io/instance=postgres -n data --ignore-not-found
+          kubectl wait --for=delete pod -l app.kubernetes.io/instance=postgres -n data --timeout=120s || true
+          kubectl delete pvc -l app.kubernetes.io/instance=postgres -n data --ignore-not-found
+          kubectl wait --for=delete pvc -l app.kubernetes.io/instance=postgres -n data --timeout=120s || true
+
       - name: Install PostgreSQL (bitnami)
         run: |
           helm dependency update ./postgres
@@ -281,7 +284,8 @@ jobs:
                 --set global.postgresql.auth.postgresPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
                 --set global.postgresql.auth.password="${{ secrets.POSTGRES_USER_PASSWORD }}" \
                 --set postgresql.auth.postgresPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
-                --set postgresql.auth.password="${{ secrets.POSTGRES_USER_PASSWORD }}"
+                --set postgresql.auth.password="${{ secrets.POSTGRES_USER_PASSWORD }}" \
+                --wait --timeout 10m
                 
       - name: Fetch pgAdmin chart dependencies
         run: helm dependency build ./pgadmin     
@@ -332,7 +336,7 @@ jobs:
           kubectl apply -f ../k8s/quotas/
           kubectl apply -f ../k8s/pdb/
 
-   post_helm:
+   ansible:
     needs: helm
     runs-on: ubuntu-latest
     defaults:
@@ -342,187 +346,94 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-        
-    - name: Decode VPN WireGuard Private Key
-      run: |
-          echo "${{ secrets.VPN_WIREGUARD_PRIV_KEY_B64 }}" | base64 -d > wg.key
-          chmod 600 wg.key
-    - name: Decode VPN WireGuard Client Public Key
-      run: |
-            echo "${{ secrets.VPN_CLIENT_PUBLIC_KEY_B64 }}" | base64 -d > client.pub
-            chmod 644 client.pub
 
-    - name: Decode VPN WireGuard Client Private Key
+    - name: Decode keys
       run: |
-          echo "${{ secrets.VPN_CLIENT_PRIVATE_KEY_B64 }}" | base64 -d > client.key
-          chmod 600 client.key
-          
-    - name: Decode VPN SSH Private Key
+        echo "${{ secrets.TF_PRIVATE_KEY_B64 }}"         | base64 -d > oci_api_key.pem
+        echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}"     | base64 -d > vpn_key.pem
+        echo "${{ secrets.VPN_WIREGUARD_PRIV_KEY_B64 }}" | base64 -d > wg.key
+        echo "${{ secrets.VPN_CLIENT_PRIVATE_KEY_B64 }}"  | base64 -d > client.key
+        chmod 600 oci_api_key.pem vpn_key.pem wg.key client.key
+
+    - name: Render backend_override.tf from template
       run: |
-          echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
-          chmod 600 vpn_key.pem
+        sed \
+          -e "s|__BUCKET__|${{ secrets.OCI_TF_BUCKET }}|" \
+          -e "s|__NAMESPACE__|${{ secrets.OCI_NAMESPACE }}|" \
+          -e "s|__REGION__|${{ secrets.REGION }}|" \
+          -e "s|__COMPARTMENT_OCID__|${{ secrets.COMPARTMENT_OCID }}|" \
+          backend.tpl > backend_override.tf
 
     - name: Set up Terraform
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.12.2
 
-    - name: Create terraform.tfvars with decoded secrets
-      run: |
-        echo "${{ secrets.TF_PRIVATE_KEY_B64 }}"    | base64 -d > oci_api_key.pem
-        echo "${{ secrets.TF_OKE_SSH_KEY_B64 }}"     | base64 -d > oke_ssh_key.pub
-        echo "${{ secrets.TF_VPN_SSH_KEY_B64 }}"     | base64 -d > vpn_ssh_key.pub
-        echo "${{ secrets.TF_VPN_PRIVATE_KEY_B64 }}" | base64 -d > vpn_key.pem
-
-        # Set proper permissions
-        chmod 600 oci_api_key.pem vpn_key.pem
-        chmod 644 oke_ssh_key.pub vpn_ssh_key.pub
-
-        tee terraform.tfvars > /dev/null <<EOF
-        tenancy_ocid         = "${{ secrets.TENANCY_OCID }}"
-        user_ocid            = "${{ secrets.USER_OCID }}"
-        region               = "${{ secrets.REGION }}"
-        availability_domain  = "${{ secrets.AVAILABILITY_DOMAIN }}"
-        fingerprint          = "${{ secrets.FINGERPRINT }}"
-
-        private_key = <<EOKEY
-        $(cat oci_api_key.pem)
-        EOKEY
-
-        compartment_ocid     = "${{ secrets.COMPARTMENT_OCID }}"
-        vcn_cidr_block       = "${{ secrets.VCN_CIDR_BLOCK }}"
-        oke_k8s_version      = "${{ secrets.OKE_K8S_VERSION }}"
-
-        oke_ssh_key = <<EOKEY
-        $(cat oke_ssh_key.pub)
-        EOKEY
-
-        vpn_ssh_key = <<EOKEY
-        $(cat vpn_ssh_key.pub)
-        EOKEY
-
-        vpn_private_key = <<EOKEY
-        $(cat vpn_key.pem)
-        EOKEY
-
-        vpn_instance_shape   = "${{ secrets.VPN_INSTANCE_SHAPE }}"
-        vpn_image_ocid       = "${{ secrets.VPN_IMAGE_OCID }}"
-        oke_node_shape       = "${{ secrets.OKE_NODE_SHAPE }}"
-        oke_image_ocid       = "${{ secrets.OKE_IMAGE_OCID }}"
-        budget_alert_email   = "${{ secrets.BUDGET_ALERT_EMAIL }}"
-        EOF
-        
-    - name: Render backend_override.tf from template
-      run: |
-          sed \
-            -e "s|__BUCKET__|${{ secrets.OCI_TF_BUCKET }}|" \
-            -e "s|__NAMESPACE__|${{ secrets.OCI_NAMESPACE }}|" \
-            -e "s|__REGION__|${{ secrets.REGION }}|" \
-            -e "s|__COMPARTMENT_OCID__|${{ secrets.COMPARTMENT_OCID }}|" \
-            backend.tpl > backend_override.tf
-            
     - name: Terraform Init
       env:
         TF_INPUT: false
-        TF_VAR_tenancy_ocid: ${{ secrets.TENANCY_OCID }}
-        TF_VAR_user_ocid: ${{ secrets.USER_OCID }}
-        TF_VAR_fingerprint: ${{ secrets.FINGERPRINT }}
-        TF_VAR_region: ${{ secrets.REGION }}
-        TF_VAR_private_key_path: "./oci_api_key.pem"
       run: |
-        # Ensure backend override exists
-        if [ ! -f backend_override.tf ]; then
-          echo "Error: backend_override.tf not found"
-          exit 1
-        fi
-        
-        # Initialize with backend configuration
         terraform init \
           -backend-config="tenancy_ocid=${{ secrets.TENANCY_OCID }}" \
           -backend-config="user_ocid=${{ secrets.USER_OCID }}" \
           -backend-config="fingerprint=${{ secrets.FINGERPRINT }}" \
           -backend-config="private_key_path=./oci_api_key.pem"
 
-    # Add a step to test SSH connectivity before applying
-    - name: Test SSH connectivity to VPN instance
+    - name: Build Ansible inventory from Terraform state
       run: |
-        # First get the VPN IP from terraform state
-        VPN_IP=$(terraform output -raw vpn_instance_public_ip 2>/dev/null)
-        
-        if [ -z "$VPN_IP" ] || [ "$VPN_IP" = "null" ]; then
-          echo "Could not get VPN IP from terraform output, checking if instance exists..."
-          terraform show | grep -A 5 "vpn_instance" || echo "No VPN instance found in state"
-          exit 1
-        fi
-        
-        echo "Testing SSH connectivity to $VPN_IP"
-        
-        # Test SSH connectivity with timeout and retries
-        for i in {1..5}; do
-          echo "SSH attempt $i/5..."
-          if timeout 30 ssh -i vpn_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=5 ubuntu@$VPN_IP "echo 'SSH connection successful'"; then
-            echo "SSH connectivity test passed"
-            exit 0
-          fi
-          echo "SSH attempt $i failed, waiting 10 seconds..."
-          sleep 10
-        done
-        
-        echo "All SSH connectivity tests failed"
-        exit 1
+        VPN_IP=$(terraform output -raw vpn_instance_public_ip)
+        mkdir -p ../ansible/inventory
+        cat > ../ansible/inventory/hosts.yml <<EOF
+        all:
+          hosts:
+            vpn:
+              ansible_host: ${VPN_IP}
+              ansible_user: ubuntu
+              ansible_ssh_private_key_file: $(pwd)/vpn_key.pem
+        EOF
 
-    - name: Apply VPN provisioning
-      timeout-minutes: 10
-      env:
-        # Reduce log verbosity to see actual errors
-        TF_LOG: INFO
+    - name: Install Ansible and required collections
       run: |
-          # Validate variables first
-          echo "Validating WireGuard keys..."
-          if [ ! -s wg.key ] || [ ! -s client.key ]; then
-            echo "Error: WireGuard key files are empty or missing"
-            exit 1
-          fi
-          
-          # Apply with better error handling
-          terraform apply \
-            -target=null_resource.vpn_provision \
-            -var="lb_ip=${{ needs.helm.outputs.lb_ip }}" \
-            -var="domain=${{ secrets.DOMAIN }}" \
-            -var="vpn_wireguard_private_key=$(cat wg.key)" \
-            -var="vpn_wireguard_public_key=${{ secrets.VPN_WIREGUARD_PUB_KEY }}" \
-            -var="vpn_client_private_key=$(cat client.key)" \
-            -var="vpn_wireguard_client_public_key=${{ secrets.VPN_WIREGUARD_CLIENT_PUB_KEY }}" \
-            -auto-approve
+        pip install ansible
+        ansible-galaxy collection install community.general ansible.posix
 
-    - name: Create public DNS record for webhook
+    - name: Write Ansible vars file
       run: |
-          curl -X POST "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/dns_records" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            --data '{
-                "type": "A",
-                "name": "n8n-webhook.${{ secrets.DOMAIN }}",
-                "content": "'"${{ needs.helm.outputs.lb_ip }}"'",
-                "ttl": 120,
-                "proxied": false
-            }'
-            
-    - name: Capture VPN public IP
-      id: vpn-ip
+        python3 -c "
+        import yaml, os
+        vars = {
+            'vpn_wireguard_private_key':    open('wg.key').read().strip(),
+            'vpn_client_private_key':       open('client.key').read().strip(),
+            'vpn_wireguard_public_key':     '${{ secrets.VPN_WIREGUARD_PUB_KEY }}',
+            'vpn_wireguard_client_public_key': '${{ secrets.VPN_WIREGUARD_CLIENT_PUB_KEY }}',
+            'lb_ip':                        '${{ needs.helm.outputs.lb_ip }}',
+            'domain':                       '${{ secrets.DOMAIN }}',
+            'cloudflare_api_token':         '${{ secrets.CLOUDFLARE_API_TOKEN }}',
+        }
+        with open('/tmp/ansible_vars.yml', 'w') as f:
+            yaml.dump(vars, f)
+        os.chmod('/tmp/ansible_vars.yml', 0o600)
+        "
+
+    - name: Run VPN provisioning playbook
+      working-directory: ./ansible
       run: |
-          echo "vpn_ip=$(terraform output -raw vpn_instance_public_ip)" >> "$GITHUB_OUTPUT"
-          
-    - name: Fetch client config from VPN
+        ansible-playbook playbooks/vpn-provision.yml \
+          -i inventory/hosts.yml \
+          -e @/tmp/ansible_vars.yml
+
+    - name: Run DNS setup playbook
+      working-directory: ./ansible
       run: |
-              scp -o StrictHostKeyChecking=no -i vpn_key.pem ubuntu@${{ steps.vpn-ip.outputs.vpn_ip }}:/home/ubuntu/wg0-client.conf ./wg0-client.conf
+        ansible-playbook playbooks/dns-setup.yml \
+          -e @/tmp/ansible_vars.yml
 
     - name: Upload WireGuard client config
       uses: actions/upload-artifact@v4
       with:
-          name: wg0-client
-          path: ./terraform/wg0-client.conf
-                    
+        name: wg0-client
+        path: /tmp/wg0-client.conf
+
     - name: Cleanup sensitive files
       if: always()
-      run: rm -f wg.key client.key vpn_key.pem oci_api_key.pem oke_ssh_key.pub vpn_ssh_key.pub terraform.tfvars
+      run: rm -f oci_api_key.pem vpn_key.pem wg.key client.key backend_override.tf /tmp/ansible_vars.yml
