@@ -216,22 +216,44 @@ Then:
 
 1.  **Terraform Apply Job**: init, plan, apply, extract kubeconfig.
 2.  **Helm Install Charts Job**: install Cert-Manager, Ingress-Nginx,
-    PostgreSQL, pgAdmin, Valkey, n8n, and Prometheus + Grafana; apply RBAC,
-    NetworkPolicy, HPA, ResourceQuota, LimitRange, and PDB manifests from `k8s/`.
+    PostgreSQL, pgAdmin, Valkey, n8n, Prometheus + Grafana, and metrics-server;
+    apply RBAC, NetworkPolicy, HPA, ResourceQuota, LimitRange, and PDB manifests from `k8s/`.
 3.  **Ansible Job**: provision WireGuard VPN, configure dnsmasq, update Cloudflare DNS, upload client config artifact.
+
+Two artifacts are produced by each successful run:
+- **`kubeconfig`** — cluster access for kubectl, Lens, and the Kubernetes MCP server
+- **`wg0-client`** — WireGuard client config for VPN access to n8n, pgAdmin, and Grafana
 
 ------------------------------------------------------------------------
 
 ## Triggering the Workflow
 
-In GitHub: `Actions → OCI Infra Pipeline → Run workflow`.
+In GitHub: `Actions → OCI Create Pipeline → Run workflow`.
+
+------------------------------------------------------------------------
+
+## AI Tooling
+
+### Claude Code Skills
+Five custom skills are included in `.claude/skills/` for use with Claude Code (VSCode extension or CLI):
+
+| Skill | Purpose |
+|---|---|
+| `/k8s-status` | Cluster health overview — nodes, pods, PVCs, warning events |
+| `/k8s-debug` | Debug a crashing pod — logs, describe, events |
+| `/k8s-scale` | Scale a deployment and verify rollout |
+| `/k8s-cost` | Resource usage vs Always Free limits |
+| `/n8n-queue` | n8n queue depth, worker status, Valkey health |
+
+### Claude Desktop — Kubernetes MCP
+Connect Claude Desktop to your cluster for conversational cluster management.
+See [mcp/README.md](mcp/README.md) for setup instructions.
 
 ------------------------------------------------------------------------
 
 ## Next Steps
 
--   Claude Code skills and Kubernetes MCP for AI-assisted cluster management
--   n8n MCP server — connect Claude Desktop directly to n8n post-deploy
+-   n8n MCP server — connect Claude Desktop directly to n8n workflows post-deploy
 
 ------------------------------------------------------------------------
 
