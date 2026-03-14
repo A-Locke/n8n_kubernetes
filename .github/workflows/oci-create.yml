@@ -328,6 +328,20 @@ jobs:
                 --set ingress.tls[0].hosts[1]=n8n-webhook.${{ secrets.DOMAIN }} \
                 --wait --timeout 10m
 
+      - name: Install Prometheus + Grafana (kube-prometheus-stack)
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+          helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+            --namespace monitoring \
+            --create-namespace \
+            --values ./monitoring/values.yaml \
+            --set grafana.adminPassword="${{ secrets.GRAFANA_ADMIN_PASSWORD }}" \
+            --set grafana.ingress.hosts[0]=grafana.${{ secrets.DOMAIN }} \
+            --set "grafana.ingress.tls[0].hosts[0]=grafana.${{ secrets.DOMAIN }}" \
+            --set "grafana.ingress.tls[0].secretName=grafana-tls" \
+            --wait --timeout 5m
+
       - name: Apply RBAC, NetworkPolicy, HPA, ResourceQuota, PDB
         run: |
           kubectl apply -f ../k8s/rbac/

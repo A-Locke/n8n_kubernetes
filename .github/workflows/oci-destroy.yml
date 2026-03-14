@@ -86,6 +86,9 @@ jobs:
           kubectl delete -f ../k8s/quotas/ --ignore-not-found=true
           kubectl delete -f ../k8s/pdb/ --ignore-not-found=true
 
+      - name: Uninstall monitoring
+        run: helm uninstall monitoring --namespace monitoring --wait --timeout 5m || true
+
       - name: Uninstall n8n
         run: helm uninstall n8n --namespace workflows --wait --timeout 5m || true
 

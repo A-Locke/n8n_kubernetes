@@ -1,0 +1,81 @@
+# kube-prometheus-stack — trimmed for Oracle Always Free (2×A1.Flex nodes)
+# Total addition: ~200m CPU, ~764Mi RAM — fits within headroom after worker/webhook reduction
+
+# Alertmanager disabled — saves ~128Mi RAM
+alertmanager:
+  enabled: false
+
+# Disable components not exposed in OKE managed control plane
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+defaultRules:
+  rules:
+    alertmanager: false
+    etcd: false
+    configReloaders: false
+
+# Prometheus — emptyDir storage (no OCI block volume, 50GB minimum would exhaust Always Free)
+prometheus:
+  prometheusSpec:
+    retention: 12h
+    storageSpec: {}  # emptyDir — data lost on pod restart, acceptable for short retention
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Grafana — no persistence, dashboards provisioned via ConfigMaps
+grafana:
+  enabled: true
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  # adminPassword set via --set in workflow (GRAFANA_ADMIN_PASSWORD secret)
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts:
+      - grafana.locke.cz  # overridden via --set in workflow
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.locke.cz  # overridden via --set in workflow
+
+# node-exporter — DaemonSet, one per node
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 30Mi
+    limits:
+      cpu: 50m
+      memory: 50Mi
+
+# kube-state-metrics
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 50m
+      memory: 128Mi

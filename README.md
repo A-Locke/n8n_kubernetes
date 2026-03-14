@@ -32,13 +32,12 @@ The pipeline provisions the following:
 
 -   **OKE Kubernetes Cluster** on Always Free Ampere A1 nodes
 -   **Helm-managed deployments**: Cert-Manager, Ingress-Nginx,
-    PostgreSQL, pgAdmin, Valkey, and n8n (v2, queue mode)
+    PostgreSQL, pgAdmin, Valkey, n8n (v2, queue mode), and Prometheus + Grafana
 -   **Kubernetes hardening**: RBAC, NetworkPolicy, HPA, ResourceQuota,
     LimitRange, and PodDisruptionBudget via manifests in `k8s/`
--   **WireGuard VPN** hosted on a free AMD instance for secure ingress
-    access
--   **Cloudflare DNS automation** for certificate issuance and DNS
-    records
+-   **WireGuard VPN** hosted on a free AMD instance — sole access path to n8n, pgAdmin, and Grafana
+-   **Ansible provisioning** for VPN configuration and Cloudflare DNS (replaces Terraform null_resource)
+-   **Cloudflare DNS automation** for certificate issuance via DNS01 challenge
 
 ------------------------------------------------------------------------
 
@@ -143,16 +142,15 @@ Always choose shapes marked **"Always Free Eligible."**
 - **VPN_WIREGUARD_CLIENT_PUB_KEY** (🔒🧮) — Client public key (plain text) used by Terraform at apply time.
 
 ### Cloudflare (DNS + cert-manager DNS01)
-- **CLOUDFLARE_API_TOKEN** (🔒🧾) — Token with permissions: *Zone → DNS:Edit*, *Zone:Read* (and account as needed).  
+- **CLOUDFLARE_API_TOKEN** (🔒🧾) — Token with permissions: *Zone → DNS:Edit*, *Zone:Read* (and account as needed).
   *Cloudflare Dashboard → My Profile → API Tokens.*
-- **CLOUDFLARE_ZONE_ID** (🧾) — Your DNS Zone ID.  
-  *Zone → Overview → API section.*
 
 ### Applications / Ingress / Data
 - **DOMAIN** (🧩) — Base domain for ingress, e.g. `example.com`.
 - **PGADMIN_EMAIL** (🧩) — Email for pgAdmin login and as cert-manager Issuer email.
 - **POSTGRES_ADMIN_PASSWORD** (🔒🧩) — Strong password for `postgres` superuser.
 - **POSTGRES_USER_PASSWORD** (🔒🧩) — Strong password for application DB user.
+- **GRAFANA_ADMIN_PASSWORD** (🔒🧩) — Strong password for Grafana admin login.
 
 ---
 
@@ -189,11 +187,11 @@ Outputs are written under `./secrets/` and a summary file `./secrets/github-secr
 ## Quick Mapping: Which Secrets Expect Base64?
 
 **Expect Base64:**
-- `TF_PRIVATE_KEY_B64`, `TF_OKE_SSH_KEY_B64`, `TF_VPN_SSH_KEY_B64`, `TF_VPN_PRIVATE_KEY_B64`  
+- `TF_PRIVATE_KEY_B64`, `TF_OKE_SSH_KEY_B64`, `TF_VPN_SSH_KEY_B64`, `TF_VPN_PRIVATE_KEY_B64`
 - `VPN_WIREGUARD_PRIV_KEY_B64`, `VPN_CLIENT_PRIVATE_KEY_B64`, `VPN_CLIENT_PUBLIC_KEY_B64`
 
 **Plain (not Base64):**
-- `TENANCY_OCID`, `USER_OCID`, `REGION`, `AVAILABILITY_DOMAIN`, `FINGERPRINT`, `OCI_TF_BUCKET`, `OCI_NAMESPACE`, `COMPARTMENT_OCID`, `VCN_CIDR_BLOCK`, `OKE_K8S_VERSION`, `OKE_NODE_SHAPE`, `OKE_IMAGE_OCID`, `VPN_INSTANCE_SHAPE`, `VPN_IMAGE_OCID`, `BUDGET_ALERT_EMAIL`, `DOMAIN`, `PGADMIN_EMAIL`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID`, `POSTGRES_ADMIN_PASSWORD`, `POSTGRES_USER_PASSWORD`, `VPN_WIREGUARD_PUB_KEY`, `VPN_WIREGUARD_CLIENT_PUB_KEY`.
+- `TENANCY_OCID`, `USER_OCID`, `REGION`, `AVAILABILITY_DOMAIN`, `FINGERPRINT`, `OCI_TF_BUCKET`, `OCI_NAMESPACE`, `COMPARTMENT_OCID`, `VCN_CIDR_BLOCK`, `OKE_K8S_VERSION`, `OKE_NODE_SHAPE`, `OKE_IMAGE_OCID`, `VPN_INSTANCE_SHAPE`, `VPN_IMAGE_OCID`, `BUDGET_ALERT_EMAIL`, `DOMAIN`, `PGADMIN_EMAIL`, `CLOUDFLARE_API_TOKEN`, `POSTGRES_ADMIN_PASSWORD`, `POSTGRES_USER_PASSWORD`, `GRAFANA_ADMIN_PASSWORD`, `VPN_WIREGUARD_PUB_KEY`, `VPN_WIREGUARD_CLIENT_PUB_KEY`.
 
 ---
 
@@ -218,10 +216,9 @@ Then:
 
 1.  **Terraform Apply Job**: init, plan, apply, extract kubeconfig.
 2.  **Helm Install Charts Job**: install Cert-Manager, Ingress-Nginx,
-    PostgreSQL, pgAdmin, Valkey, n8n; apply RBAC, NetworkPolicy, HPA,
-    ResourceQuota, LimitRange, and PDB manifests from `k8s/`.
-3.  **Post-Helm VPN Provision Job**: SSH into VPN host, configure
-    WireGuard, update Cloudflare, upload client config.
+    PostgreSQL, pgAdmin, Valkey, n8n, and Prometheus + Grafana; apply RBAC,
+    NetworkPolicy, HPA, ResourceQuota, LimitRange, and PDB manifests from `k8s/`.
+3.  **Ansible Job**: provision WireGuard VPN, configure dnsmasq, update Cloudflare DNS, upload client config artifact.
 
 ------------------------------------------------------------------------
 
@@ -233,10 +230,8 @@ In GitHub: `Actions → OCI Infra Pipeline → Run workflow`.
 
 ## Next Steps
 
--   Ansible for GitHub Actions provisioning steps
 -   Claude Code skills and Kubernetes MCP for AI-assisted cluster management
 -   n8n MCP server — connect Claude Desktop directly to n8n post-deploy
--   Monitoring with Prometheus & Grafana
 
 ------------------------------------------------------------------------
 
